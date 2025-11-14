@@ -1,16 +1,19 @@
 import sys
-from PyQt5.QtWidgets import QMainWindow,QCheckBox,QTabWidget,QApplication, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog
+from PyQt5.QtWidgets import QMainWindow,QTabWidget,QApplication, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog
 from PyQt5.QtCore import Qt
+from PyQt5 import QtCore
 import h5py
 import pyqtgraph as pg
 import numpy as np
 from scipy.signal import spectrogram, welch
+from pyqtgraph.Qt import QtGui
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SDRagon Vision")
         self.index = 0
+        self.max_index = None
         self.current_file_path = None
 
         self.central_widget = QWidget()
@@ -29,6 +32,7 @@ class MainWindow(QMainWindow):
         transmitter_sources_names.setStyleSheet("background-color: #006699; color: #FFC600;")
         transmitter_sources_names2 = QPushButton("transmitter2")
         transmitter_sources_names2.setStyleSheet("background-color: #006699; color: #FFC600;")
+        
         self.transmitter_sources_widget.addWidget(transmitter_sources_names)
         self.transmitter_sources_widget.addWidget(transmitter_sources_names2)
 
@@ -42,7 +46,7 @@ class MainWindow(QMainWindow):
         self.horizonal_layout.addWidget(self.tabs)
         self.layout.addLayout(self.horizonal_layout)
 
-        self.setup_line_graph_tab()
+        #self.setup_line_graph_tab()
         self.setup_spectrogram_tab()
 
         #Index control buttons
@@ -108,7 +112,7 @@ class MainWindow(QMainWindow):
     def psdAndFreq(self,data):
     
         Fs = 147794 / 5  # Sampling rate (≈29558.8 Hz)
-        N = 256
+        N = 4096
         window = np.hanning(N)
 
         x = data[0:N] * window
@@ -123,58 +127,62 @@ class MainWindow(QMainWindow):
 
         freq_welch, Pxx = welch(data, fs=Fs, window='hann',nperseg=N, noverlap=N//2)
         Pxx_dB = 10 * np.log10(Pxx + 1e-12)
-
-        #self.line_graph(freq_welch,Pxx_dB)
-
         self.line_graph(freq,PSD_shifted)
 
-    def spectrogram_from_data(self,data):
+    def spectrogram_from_data(self,data,samping_size):
 
         self.spectrogram_layout.clear()
-        FS = 147794 / 5
-        f, t, Sxx = spectrogram(data, fs = FS,scaling='density', nperseg=4096, noverlap=2048) #spectrgram function returns frequency bins, time and 
-        Sxx_dB = 10 * np.log10(Sxx)
-        
-        plot_item = self.spectrogram_layout.addPlot(title="Spectrogram")
-
-        #this sets the zoom on the spectrogram
-        plot_item.getViewBox().setRange(
-            #xRange=(0, t.max()),
-            yRange=(-300, 300),
-            padding=0  
-        )
-
-        plot_item.getViewBox().disableAutoRange()
-        plot_item.setLabel('bottom', 'Time', units='s')
-        plot_item.setLabel('left', 'Frequency', units='hz')
-        img_item = pg.ImageItem()
-        plot_item.addItem(img_item)
-
-        img_item.setImage(Sxx_dB,autoLevels=False, autoRange=False, autoHistogramRange=False)
-        img_item.setLookupTable(pg.colormap.get('viridis').getLookupTable(0.0, 1.0, 256))
-        img_item.setLevels([Sxx_dB.max() - 80, Sxx_dB.max()])
-                
-        self.spectrogram_layout.addItem(plot_item)
-
-    def append_data(prev_Sxx,img,new_iq,fs): #WIP by me
-        f2, tt2, Sxx2 = spectrogram(new_iq, fs=fs,nperseg=128, noverlap=64, return_onesided=False, scaling='density')
-        Sxx2_dB = 10*np.log10(Sxx2 + 1e-10)
-
-        # Append along the time axis (axis=1)
-        new_Sxx_dB = np.hstack((prev_Sxx, Sxx2_dB))
-
-        # Keep last N columns (to limit memory)
-        max_cols = 400
-        if new_Sxx_dB.shape[1] > max_cols:
-            new_Sxx_dB = new_Sxx_dB[:, -max_cols:]
-
-        # Update the image (without auto-scaling)
-        img.setImage(new_Sxx_dB, autoLevels=False)
     
+        f, time_bins, Sxx = spectrogram(data, fs=samping_size, nperseg=2048, noverlap=1024, nfft=2048)
+        Sxx_db = 10 * np.log10(Sxx + 1e-12)
+
+        # quantizes to courser bins
+        # (bigger freq bin factor = coarser/blockier and vice versa)
+        freq_bin_factor = 256   # average 16 FFT bins together
+        f_trim = f[:len(f)//freq_bin_factor * freq_bin_factor] 
+        S_trim = Sxx_db[:len(f_trim), :len(time_bins)]
+
+        #average the freq bins
+        S_coarse = S_trim.reshape(
+            len(f_trim)//freq_bin_factor, freq_bin_factor,
+            len(time_bins)
+        ).mean(axis=1)
+
+        #threshold
+        threshold = Sxx_db.mean()+1
+        print(threshold)
+        occupancy = (S_coarse > threshold).astype(float)
+        print(Sxx_db.max())
+        
+        plot = self.spectrogram_layout.addPlot(title="RF View")
+        plot.setLabel('left', 'Frequency (kHz)')
+        plot.setLabel('bottom', 'Time (s)')
+        plot.showGrid(x=True, y=True)
+
+        img = pg.ImageItem()
+        plot.addItem(img)
+
+        # Set up colormap and levels
+        lut = pg.colormap.get('inferno').getLookupTable(0.0, 1.0, 256)
+        img.setLookupTable(lut)
+        img.setLevels([0, 1])
+
+        # display data
+        img.setImage(occupancy)
+        
+        time_step = time_bins[1] - time_bins[0]  
+        img.setRect(QtCore.QRectF(
+            time_bins[0],               
+            f_trim[0] / 1e3,           
+            time_step * occupancy.shape[1],   
+            (f_trim[-1] - f_trim[0]) / 1e3 
+        ))
+                
+        self.spectrogram_layout.addItem(plot)
 
     def next_button_click(self):
         print(self.index)
-        if(self.index < 39):
+        if(self.index < self.max_index-1):
             self.index+=1
             self.plot_data_from_file(self.current_file_path)
             self.index_count.setText(str(self.index+1))
@@ -191,9 +199,12 @@ class MainWindow(QMainWindow):
             with h5py.File(file_path, 'r') as f:
                 key = 'snapshots'
                 data = f[key]["iq_data"][self.index]
+                fs = f[key]["fs"][0]
+                self.max_index = len(f[key]['iq_data_len'])
 
-                self.psdAndFreq(data)
-                self.spectrogram_from_data(data)
+                #self.psdAndFreq(data)
+                self.spectrogram_from_data(data,fs)
+                #self.spectrogram_from_synthetic_data()
         except Exception as e:
             print(f"Error loading or plotting file: {e}")
 
