@@ -7,6 +7,26 @@ import pyqtgraph as pg
 import numpy as np
 from scipy.signal import spectrogram, welch
 from pyqtgraph.Qt import QtGui
+import matplotlib.pyplot as plt
+
+def calculate_spectrogram(data,sample_rate):
+    f, time_bins, Sxx = spectrogram(
+        data,
+        fs=sample_rate,
+        nperseg=512,
+        noverlap=256,
+        nfft=512,
+        window="hann",
+        return_onesided=False
+    )
+
+    Sxx_db = 10 * np.log10(np.abs(Sxx) + 1e-12)
+    Sxx_db = np.fft.fftshift(Sxx_db, axes=0)
+    f = np.fft.fftshift(f)
+
+    return f,time_bins,Sxx_db
+
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -46,7 +66,7 @@ class MainWindow(QMainWindow):
         self.horizonal_layout.addWidget(self.tabs)
         self.layout.addLayout(self.horizonal_layout)
 
-        #self.setup_line_graph_tab()
+        self.setup_RF_View_tab()
         self.setup_spectrogram_tab()
 
         #Index control buttons
@@ -87,13 +107,21 @@ class MainWindow(QMainWindow):
         #Adds the container widget to the main QTabWidget
         self.tabs.addTab(tab, "Line graph")
     
+    def setup_RF_View_tab(self):
+        tab = QWidget()
+        self.binary_occupany_layout = pg.GraphicsLayoutWidget(title="Spectrogram")
+        layout = QVBoxLayout()
+        layout.addWidget(self.binary_occupany_layout)
+        tab.setLayout(layout)
+        self.tabs.addTab(tab, "RF view")
+
     def setup_spectrogram_tab(self):
         tab = QWidget()
-        self.spectrogram_layout = pg.GraphicsLayoutWidget(title="Spectrogram")
+        self.setup_spectrogram = pg.GraphicsLayoutWidget(title="Spectrogram")
         layout = QVBoxLayout()
-        layout.addWidget(self.spectrogram_layout)
+        layout.addWidget(self.setup_spectrogram)
         tab.setLayout(layout)
-        self.tabs.addTab(tab, "Spectrogram")
+        self.tabs.addTab(tab, "spectrogram")
 
     def load_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","(*.h5)")
@@ -109,76 +137,85 @@ class MainWindow(QMainWindow):
         self.plot_widget.setLabel('bottom', 'frequencies (Hz)')
     
 
-    def psdAndFreq(self,data):
-    
-        Fs = 147794 / 5  # Sampling rate (≈29558.8 Hz)
-        N = 4096
-        window = np.hanning(N)
+    def binary_occupancy_from_data(self,data,sample_rate):
 
-        x = data[0:N] * window
+        self.binary_occupany_layout.clear()
 
-        X = np.fft.fft(x)
-        PSD = np.abs(X)**2 / (N * Fs)
-        PSD_log = 10 * np.log10(PSD + 1e-12)
-        PSD_shifted = np.fft.fftshift(PSD_log)
+        f,time_bins,Sxx_db = calculate_spectrogram(data,sample_rate)
+        freq_bin_factor = 1          
+        F = len(f)
+        T = len(time_bins)
+        F_trim = (F // freq_bin_factor) * freq_bin_factor
+        f_trim = f[:F_trim]
+        S_trim = Sxx_db[:F_trim,:T]     
 
-        # Frequency axis
-        freq = np.fft.fftshift(np.fft.fftfreq(N, 1/Fs))
+        f_coarse = f_trim.reshape(-1, freq_bin_factor).mean(axis=1) 
+        S_coarse = S_trim.reshape(len(f_coarse), freq_bin_factor, T).max(axis=1)  
 
-        freq_welch, Pxx = welch(data, fs=Fs, window='hann',nperseg=N, noverlap=N//2)
-        Pxx_dB = 10 * np.log10(Pxx + 1e-12)
-        self.line_graph(freq,PSD_shifted)
-
-    def spectrogram_from_data(self,data,samping_size):
-
-        self.spectrogram_layout.clear()
-    
-        f, time_bins, Sxx = spectrogram(data, fs=samping_size, nperseg=2048, noverlap=1024, nfft=2048)
-        Sxx_db = 10 * np.log10(Sxx + 1e-12)
-
-        # quantizes to courser bins
-        # (bigger freq bin factor = coarser/blockier and vice versa)
-        freq_bin_factor = 256   # average 16 FFT bins together
-        f_trim = f[:len(f)//freq_bin_factor * freq_bin_factor] 
-        S_trim = Sxx_db[:len(f_trim), :len(time_bins)]
-
-        #average the freq bins
-        S_coarse = S_trim.reshape(
-            len(f_trim)//freq_bin_factor, freq_bin_factor,
-            len(time_bins)
-        ).mean(axis=1)
-
-        #threshold
-        threshold = Sxx_db.mean()+1
+        thr_offset_db = 0   # try 3,6,9,12
+        threshold = np.median(S_coarse) + thr_offset_db
         print(threshold)
         occupancy = (S_coarse > threshold).astype(float)
-        print(Sxx_db.max())
         
-        plot = self.spectrogram_layout.addPlot(title="RF View")
-        plot.setLabel('left', 'Frequency (kHz)')
-        plot.setLabel('bottom', 'Time (s)')
-        plot.showGrid(x=True, y=True)
+        plot = self.binary_occupany_layout.addPlot(title="RF View")
+        img = pg.ImageItem()
+        plot.addItem(img)
+        img.setColorMap("inferno")
+        img.setImage(occupancy.T)
+        plot.setLabel("left", "Frequency (kHz)")
+        plot.setLabel("bottom", "Time (s)")
+
+        time_step = time_bins[1] - time_bins[0]
+        freq_step = (f[1] - f[0])
+
+        img.setRect(pg.QtCore.QRectF(
+            time_bins[0],       
+            f[0]/1e3,       
+            time_step * Sxx_db.shape[1],   
+            freq_step/1e3 * Sxx_db.shape[0]
+        ))
+                        
+        self.binary_occupany_layout.addItem(plot)
+
+
+    def spectrogram_from_data(self,data,sample_rate):
+
+        self.setup_spectrogram.clear()
+
+        f,time_bins,Sxx_db = calculate_spectrogram(data,sample_rate)
+        
+        plot = self.setup_spectrogram.addPlot(title="Spectrogram")
+        plot.setLabel("left", "Frequency (kHz)")
+        plot.setLabel("bottom", "Time (s)")
 
         img = pg.ImageItem()
         plot.addItem(img)
-
-        # Set up colormap and levels
-        lut = pg.colormap.get('inferno').getLookupTable(0.0, 1.0, 256)
+        cmap = pg.colormap.get('viridis')
+        lut = cmap.getLookupTable(0.0, 1.0, 256)
         img.setLookupTable(lut)
-        img.setLevels([0, 1])
-
-        # display data
-        img.setImage(occupancy)
+        img.setLevels([Sxx_db.min(), Sxx_db.max()])
+        img.setImage(Sxx_db.T)
         
-        time_step = time_bins[1] - time_bins[0]  
-        img.setRect(QtCore.QRectF(
-            time_bins[0],               
-            f_trim[0] / 1e3,           
-            time_step * occupancy.shape[1],   
-            (f_trim[-1] - f_trim[0]) / 1e3 
+        time_step = time_bins[1] - time_bins[0]
+        freq_step = (f[1] - f[0])
+
+        colorbar = pg.ColorBarItem(
+            values=(Sxx_db.min(), Sxx_db.max()), 
+            colorMap= cmap,
+            label="Power (dB)"
+        )
+
+        colorbar.setImageItem(img)
+
+        img.setRect(pg.QtCore.QRectF(
+            time_bins[0],       
+            f[0]/1e3,       
+            time_step * Sxx_db.shape[1],   
+            freq_step/1e3 * Sxx_db.shape[0]
         ))
-                
-        self.spectrogram_layout.addItem(plot)
+             
+        self.setup_spectrogram.addItem(plot)
+        self.setup_spectrogram.addItem(colorbar)
 
     def next_button_click(self):
         print(self.index)
@@ -199,12 +236,39 @@ class MainWindow(QMainWindow):
             with h5py.File(file_path, 'r') as f:
                 key = 'snapshots'
                 data = f[key]["iq_data"][self.index]
-                fs = f[key]["fs"][0]
-                self.max_index = len(f[key]['iq_data_len'])
+                fs = f['snapshots']["fs"][0]
+                self.max_index = len(data)
+                if(data.dtype == "int8"):
+                    sample = data
+                    if len(data) % 2 != 0:
+                        sample = data[:-1]
+                    iq_data = sample[::2] + 1j*sample[1::2]
+                    iq_data = iq_data /128
 
-                #self.psdAndFreq(data)
-                self.spectrogram_from_data(data,fs)
-                #self.spectrogram_from_synthetic_data()
+                    #-------this is for debugging so ignore it-----------
+                    #this is a simple signal/tone
+                    #fs = 1e6   
+                    #t = np.arange(1024*1000)/fs # time vector
+                    #f = 50e3 # freq of tone
+                    #x = np.sin(2*np.pi*f*t) + 0.2*np.random.randn(len(t))
+
+
+                    #burst tone
+                    #fs = 1e6
+                    #t = np.arange(int(fs)) / fs
+                    #f = 100e3
+                    #burst = np.sin(2*np.pi*f*t)
+                    #burst[:200000] = 0     
+                    #burst[200000:400000] *= 1  
+                    #burst[400000:] = 0     
+
+                    self.binary_occupancy_from_data(data,fs)
+                    self.spectrogram_from_data(data,fs)
+                elif(data.dtype == "complex64"):
+                    self.binary_occupancy_from_data(data,fs)
+                    self.spectrogram_from_data(data,fs)
+                else:
+                    print(f[key]["iq_data"][self.index].dtype)
         except Exception as e:
             print(f"Error loading or plotting file: {e}")
 
