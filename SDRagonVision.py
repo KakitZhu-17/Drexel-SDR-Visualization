@@ -50,13 +50,16 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SDRagon Vision")
+
+        #===============useful fields for processing==========================
         self.index = 0
         self.max_index = None
         self.current_file_path = None
         self.global_time = 0
-        self.bin_factor = 128
+        self.bin_factor = 12
         self.colormap_scheme = "magma"
 
+        #===============actual layout stuff===================================
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)
@@ -66,8 +69,6 @@ class MainWindow(QMainWindow):
         self.load_button.setStyleSheet("background-color: #006699; color: #FFC600;")
         self.load_button.clicked.connect(self.load_file)
         self.layout.addWidget(self.load_button)
-
-        #buttons for transmitter (for mock up only, delete later)
 
         self.horizonal_layout = QHBoxLayout()
 
@@ -82,7 +83,7 @@ class MainWindow(QMainWindow):
         self.setup_spectrogram_tab()
 
         #Index control buttons
-        index_control_layout = QHBoxLayout()
+        index_control_layout = QHBoxLayout() #this is a horizontal layout box, it puts widget right next to each other
 
         self.next_button = QPushButton("next index",self)
         self.next_button.setStyleSheet("background-color: #006699; color: #FFC600;")
@@ -102,9 +103,10 @@ class MainWindow(QMainWindow):
         self.layout.addLayout(index_control_layout)
     
     def setup_RF_View_tab(self):
+        #this is basically how you add a widget
         tab = QWidget()
         self.binary_occupany_layout = pg.GraphicsLayoutWidget(title="Spectrogram")
-        layout = QVBoxLayout()
+        layout = QVBoxLayout() #this is a vertical layout box, it puts widgets on top of each other
         layout.addWidget(self.binary_occupany_layout)
         tab.setLayout(layout)
         self.tabs.addTab(tab, "RF view")
@@ -118,27 +120,27 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(tab, "spectrogram")
 
     def load_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","(*.h5)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","(*.h5)") #filters out files for h5 files
         self.index = 0
         if file_path:
             self.current_file_path = file_path
             self.plot_data_from_file(file_path)
             
 
-    def binary_occupancy_from_data(self,data,sample_rate):
+    def binary_occupancy_from_data(self,f,time_bins,Sxx_db):
         self.binary_occupany_layout.clear()
         self.ob_plot = self.binary_occupany_layout.addPlot(title="RF View")
 
-        f,time_bins,Sxx_db = calculate_spectrogram(data,sample_rate)
-        freq_bin_factor = self.bin_factor        
+        freq_bin_factor = self.bin_factor
+
         F = len(f)
         T = len(time_bins)
-        F_trim = (F // freq_bin_factor) * freq_bin_factor
+        F_trim = (F // freq_bin_factor) * freq_bin_factor #this makes sure the frequency bins are divisible by bin factor
         f_trim = f[:F_trim]
         S_trim = Sxx_db[:F_trim,:T]     
 
-        f_coarse = f_trim.reshape(-1, freq_bin_factor).mean(axis=1) 
-        S_coarse = S_trim.reshape(len(f_coarse), freq_bin_factor, T).max(axis=1)  
+        f_coarse = f_trim.reshape(len(f_trim)//freq_bin_factor, freq_bin_factor).mean(axis=1) 
+        S_coarse = S_trim.reshape(len(f_coarse), freq_bin_factor, T).max(axis=1) #so basically it would reshape the spectrogram to len(f_coarse) number of bins, each bin is shaped(freq_bin_factor,T)
 
         thr_offset_db = -5   # try -2 to -6 but this will change later on
         threshold = np.max(S_coarse)+thr_offset_db
@@ -160,24 +162,23 @@ class MainWindow(QMainWindow):
             time_bins[-1],
             freq_total/1e3
         ))
-
-        self.global_time += time_bins[-1]
                         
         self.binary_occupany_layout.addItem(plot)
 
 
-    def append_data_binary_occupany(self,data,sample_rate):
+    def append_data_binary_occupany(self,f,time_bins,Sxx_db):
         plot = self.ob_plot
-        f, time_bins, Sxx_db = calculate_spectrogram(data, sample_rate)
 
         freq_bin_factor = self.bin_factor
+        
         F = len(f)
         T = len(time_bins)
+
         F_trim = (F // freq_bin_factor) * freq_bin_factor
         f_trim = f[:F_trim]
         S_trim = Sxx_db[:F_trim, :T]
 
-        f_coarse = f_trim.reshape(-1, freq_bin_factor).mean(axis=1)
+        f_coarse = f_trim.reshape(len(f_trim)//freq_bin_factor, freq_bin_factor).mean(axis=1)
         S_coarse = S_trim.reshape(len(f_coarse), freq_bin_factor, T).max(axis=1)
 
         threshold = np.max(S_coarse) - 5
@@ -187,27 +188,25 @@ class MainWindow(QMainWindow):
         img.setColorMap(self.colormap_scheme)
         img.setImage(occupancy.T)
 
-        sample_time_width = len(data) / sample_rate 
-        print(sample_time_width,time_bins[-1])   
-        start_time = self.global_time               
-        self.global_time += time_bins[-1]            
+        start_time = self.global_time    
+
+        freq_step = (f[-1] - f[0])
 
         img.setRect(pg.QtCore.QRectF(
             start_time,
             f[0]/1e3,
             time_bins[-1],                                
-            (f[-1] - f[0]) / 1e3
+            freq_step/ 1e3
         ))
 
         plot.addItem(img)
-        plot.setXRange(self.global_time-time_bins[-1], self.global_time)
+        plot.setXRange(self.global_time, self.global_time+time_bins[-1])
 
 
-    def spectrogram_from_data(self,data,sample_rate):
+    def spectrogram_from_data(self,f,time_bins,Sxx_db):
         
         self.setup_spectrogram.clear()
         self.spectrogram = self.setup_spectrogram.addPlot(title="Spectrogram")
-        f,time_bins,Sxx_db = calculate_spectrogram(data,sample_rate)
         
         plot = self.spectrogram
         plot.setLabel("left", "Frequency (kHz)")
@@ -218,11 +217,9 @@ class MainWindow(QMainWindow):
         cmap = pg.colormap.get(self.colormap_scheme)
         lut = cmap.getLookupTable(0.0, 1.0, 256)
         img.setLookupTable(lut)
-        img.setLevels([Sxx_db.min(), Sxx_db.max()])
         img.setImage(Sxx_db.T)
         
-        time_step = time_bins[1] - time_bins[0]
-        freq_step = (f[1] - f[0])
+        freq_step = (f[-1] - f[0])
 
         colorbar = pg.ColorBarItem(
             values=(Sxx_db.min(), Sxx_db.max()), 
@@ -235,12 +232,35 @@ class MainWindow(QMainWindow):
         img.setRect(pg.QtCore.QRectF(
             time_bins[0],       
             f[0]/1e3,       
-            time_step * Sxx_db.shape[1],   
-            freq_step/1e3 * Sxx_db.shape[0]
+            time_bins[-1],   
+            freq_step/1e3
         ))
              
         self.setup_spectrogram.addItem(plot)
         self.setup_spectrogram.addItem(colorbar)
+
+    def append_data_spectrogram(self,f,time_bins,Sxx_db):
+        
+        plot = self.spectrogram
+
+        img = pg.ImageItem()
+        plot.addItem(img)
+        cmap = pg.colormap.get(self.colormap_scheme)
+        lut = cmap.getLookupTable(0.0, 1.0, 256)
+        img.setLookupTable(lut)
+        img.setImage(Sxx_db.T)
+        
+        freq_step = (f[-1] - f[0])
+
+        img.setRect(pg.QtCore.QRectF(
+            self.global_time ,       
+            f[0]/1e3,       
+            time_bins[-1],   
+            freq_step/1e3
+        ))
+             
+        self.setup_spectrogram.addItem(plot)
+        plot.setXRange(self.global_time, self.global_time+time_bins[-1])
 
     def next_button_click(self):
         print(self.index)
@@ -264,26 +284,36 @@ class MainWindow(QMainWindow):
                 fs = f[key]["fs"][self.index]
                 self.max_index = len(data)
                 if(data.dtype == "int8"):
+                    #converts int8 to complex
                     sample = data
                     if len(data) % 2 != 0:
                         sample = data[:-1]
                     iq_data = sample[::2] + 1j*sample[1::2]
                     iq_data = iq_data /128
+
+                    f,time_bins,Sxx_db = calculate_spectrogram(iq_data,fs)
                 
-                    if(self.index == 0):
-                        self.binary_occupancy_from_data(iq_data,fs)
+                    if(self.index == 0): #checks if its loading a new file
+                        self.binary_occupancy_from_data(f,time_bins,Sxx_db)
+                        self.spectrogram_from_data(f,time_bins,Sxx_db)
                     else:
-                        #print("not first")
-                        self.append_data_binary_occupany(iq_data,fs)
-                    self.spectrogram_from_data(iq_data,fs)
+                        self.append_data_binary_occupany(f,time_bins,Sxx_db)
+                        self.spectrogram_from_data(f,time_bins,Sxx_db)
+                    self.global_time += time_bins[-1]
+
                 elif(data.dtype == "complex64"):
+                    f,time_bins,Sxx_db = calculate_spectrogram(data,fs)
                     if(self.index == 0):
-                        self.binary_occupancy_from_data(data,fs)
+                        self.binary_occupancy_from_data(f,time_bins,Sxx_db)
+                        self.spectrogram_from_data(f,time_bins,Sxx_db)
                     else:
-                        self.append_data_binary_occupany(data,fs)
-                    self.spectrogram_from_data(data,fs)
+                        self.append_data_binary_occupany(f,time_bins,Sxx_db)
+                        self.spectrogram_from_data(f,time_bins,Sxx_db)
+                    self.global_time += time_bins[-1]
+                
                 else:
                     print(f[key]["iq_data"][self.index].dtype)
+
         except Exception as e:
             print(f"Error loading or plotting file: {e}")
 
