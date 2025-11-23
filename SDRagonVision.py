@@ -1,50 +1,13 @@
 import sys
-from PyQt5.QtWidgets import QMainWindow,QTabWidget,QApplication, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog
+from PyQt5.QtWidgets import QMainWindow,QTabWidget,QApplication,QSpinBox, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog
 from PyQt5.QtCore import Qt
 import h5py
 import pyqtgraph as pg
 import numpy as np
-from scipy.signal import spectrogram
+import spectrogram_setup
+import soundfile as sf
+import pandas as pd
 
-def calculate_spectrogram(data,sample_rate):
-    f, time_bins, Sxx = spectrogram(
-        data,
-        fs=sample_rate,
-        nperseg=512,
-        noverlap=256,
-        nfft=512,
-        window="hann",
-        return_onesided=False
-    )
-
-    Sxx_db = 10 * np.log10(np.abs(Sxx) + 1e-12)
-    Sxx_db = np.fft.fftshift(Sxx_db, axes=0)
-    f = np.fft.fftshift(f)
-
-    return f,time_bins,Sxx_db
-    
-def signal_generator(start, end, fs=1e6, freq=200e3, sigtype="simple",duration = 2):
-    if sigtype == "burst":
-        total_N = int(fs * duration)
-        t = np.arange(total_N) / fs
-
-        burst = np.zeros(total_N)
-        s = int(start * fs)
-        e = int(end * fs)
-
-        tone = np.sin(2*np.pi*freq*t)
-        burst[s:e] = tone[s:e]
-
-        return burst, fs
-
-    if sigtype == "simple":
-        fs = 1e6
-        N = 1024 * 1000
-        t = np.arange(N) / fs
-        f = 50e3
-        x = np.sin(2*np.pi*f*t) + 0.2*np.random.randn(len(t))
-        return x, fs
-    
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -56,8 +19,9 @@ class MainWindow(QMainWindow):
         self.max_index = None
         self.current_file_path = None
         self.global_time = 0
-        self.bin_factor = 12
-        self.colormap_scheme = "magma"
+        self.bin_factor = 6
+        self.colormap_scheme = "viridis"
+        self.threshold = -20
 
         #===============actual layout stuff===================================
         self.central_widget = QWidget()
@@ -82,6 +46,16 @@ class MainWindow(QMainWindow):
         self.setup_RF_View_tab()
         self.setup_spectrogram_tab()
 
+
+        #threhold adjuster
+        self.setup_threshold_incrmentor()
+
+        self.horizonal_layout = QHBoxLayout()
+        self.horizonal_layout.addLayout(self.dB_incrementer)
+
+        self.horizonal_layout.addWidget(self.tabs)
+        self.layout.addLayout(self.horizonal_layout)
+
         #Index control buttons
         index_control_layout = QHBoxLayout() #this is a horizontal layout box, it puts widget right next to each other
 
@@ -101,6 +75,17 @@ class MainWindow(QMainWindow):
         index_control_layout.addWidget(self.next_button)
 
         self.layout.addLayout(index_control_layout)
+
+    def setup_threshold_incrmentor(self):
+        self.dB_incrementer = QVBoxLayout()
+        self.dB_spin_box = QSpinBox(self)
+        self.dB_spin_box.setRange(-100, 100)
+        self.dB_spin_box.setSuffix(" dB")
+        self.dB_spin_box.valueChanged.connect(self.set_threshold_to_spinbox_value)
+        self.dB_incrementer.addWidget(self.dB_spin_box)
+
+    def set_threshold_to_spinbox_value(self):
+        self.threshold = self.dB_spin_box.value()
     
     def setup_RF_View_tab(self):
         #this is basically how you add a widget
@@ -142,14 +127,15 @@ class MainWindow(QMainWindow):
         f_coarse = f_trim.reshape(len(f_trim)//freq_bin_factor, freq_bin_factor).mean(axis=1) 
         S_coarse = S_trim.reshape(len(f_coarse), freq_bin_factor, T).max(axis=1) #so basically it would reshape the spectrogram to len(f_coarse) number of bins, each bin is shaped(freq_bin_factor,T)
 
-        thr_offset_db = -5   # try -2 to -6 but this will change later on
-        threshold = np.max(S_coarse)+thr_offset_db
+        threshold = np.mean(S_coarse)
+        self.dB_spin_box.setValue(threshold)
+        threshold = self.threshold
         occupancy = (S_coarse > threshold).astype(float)
         
         plot = self.ob_plot
         img = pg.ImageItem()
         plot.addItem(img)
-        img.setColorMap(self.colormap_scheme)
+        img.setColorMap("magma")
         img.setImage(occupancy.T)
         plot.setLabel("left", "Frequency (kHz)")
         plot.setLabel("bottom", "Time (s)")
@@ -181,11 +167,11 @@ class MainWindow(QMainWindow):
         f_coarse = f_trim.reshape(len(f_trim)//freq_bin_factor, freq_bin_factor).mean(axis=1)
         S_coarse = S_trim.reshape(len(f_coarse), freq_bin_factor, T).max(axis=1)
 
-        threshold = np.max(S_coarse) - 5
+        threshold = self.threshold
         occupancy = (S_coarse > threshold).astype(float)
 
         img = pg.ImageItem()
-        img.setColorMap(self.colormap_scheme)
+        img.setColorMap("magma")
         img.setImage(occupancy.T)
 
         start_time = self.global_time    
@@ -239,42 +225,27 @@ class MainWindow(QMainWindow):
         self.setup_spectrogram.addItem(plot)
         self.setup_spectrogram.addItem(colorbar)
 
-    def append_data_spectrogram(self,f,time_bins,Sxx_db):
-        
-        plot = self.spectrogram
-
-        img = pg.ImageItem()
-        plot.addItem(img)
-        cmap = pg.colormap.get(self.colormap_scheme)
-        lut = cmap.getLookupTable(0.0, 1.0, 256)
-        img.setLookupTable(lut)
-        img.setImage(Sxx_db.T)
-        
-        freq_step = (f[-1] - f[0])
-
-        img.setRect(pg.QtCore.QRectF(
-            self.global_time ,       
-            f[0]/1e3,       
-            time_bins[-1],   
-            freq_step/1e3
-        ))
-             
-        self.setup_spectrogram.addItem(plot)
-        plot.setXRange(self.global_time, self.global_time+time_bins[-1])
-
     def next_button_click(self):
-        print(self.index)
+        #print(self.index)
         if(self.index < self.max_index-1):
             self.index+=1
             self.plot_data_from_file(self.current_file_path)
-            self.index_count.setText(str(self.index+1))
+            self.index_count.setText(str(self.index))
     
     def prev_button_click(self):
-        print(self.index)
+        #print(self.index)
         if(self.index >= 0):
             self.index-=1
             self.plot_data_from_file(self.current_file_path)
-            self.index_count.setText(str(self.index+1))
+            self.index_count.setText(str(self.index))
+
+    def loadDataset(self, key):
+        """Load an HDF5 dataset into a Pandas DataFrame"""
+        ds = self.h5file[key]
+        data = np.empty(len(ds), dtype=ds.dtype)
+        if len(ds) != 0:
+            ds.read_direct(data)
+        return pd.DataFrame(data)
 
     def plot_data_from_file(self, file_path):
         try:
@@ -282,16 +253,15 @@ class MainWindow(QMainWindow):
                 key = 'snapshots'
                 data = f[key]["iq_data"][self.index]
                 fs = f[key]["fs"][self.index]
-                self.max_index = len(data)
+                self.max_index = len(f[key]["iq_data"])
                 if(data.dtype == "int8"):
                     #converts int8 to complex
                     sample = data
                     if len(data) % 2 != 0:
-                        sample = data[:-1]
+                       sample = data[:-1]
                     iq_data = sample[::2] + 1j*sample[1::2]
-                    iq_data = iq_data /128
-
-                    f,time_bins,Sxx_db = calculate_spectrogram(iq_data,fs)
+                    
+                    f,time_bins,Sxx_db = spectrogram_setup.calculate_spectrogram(iq_data,fs)
                 
                     if(self.index == 0): #checks if its loading a new file
                         self.binary_occupancy_from_data(f,time_bins,Sxx_db)
@@ -302,7 +272,7 @@ class MainWindow(QMainWindow):
                     self.global_time += time_bins[-1]
 
                 elif(data.dtype == "complex64"):
-                    f,time_bins,Sxx_db = calculate_spectrogram(data,fs)
+                    f,time_bins,Sxx_db = spectrogram_setup.calculate_spectrogram(data,fs)
                     if(self.index == 0):
                         self.binary_occupancy_from_data(f,time_bins,Sxx_db)
                         self.spectrogram_from_data(f,time_bins,Sxx_db)
