@@ -1,13 +1,10 @@
 import sys
-from PyQt5.QtWidgets import QMainWindow,QTabWidget,QApplication,QSpinBox, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog
+from PyQt5.QtWidgets import QMainWindow,QTabWidget,QApplication,QSpinBox, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QSlider
 from PyQt5.QtCore import Qt
 import h5py
 import pyqtgraph as pg
 import numpy as np
 import spectrogram_setup
-import soundfile as sf
-import pandas as pd
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -22,6 +19,7 @@ class MainWindow(QMainWindow):
         self.bin_factor = 6
         self.colormap_scheme = "viridis"
         self.threshold = -20
+        self.slider_val = 1
 
         #===============actual layout stuff===================================
         self.central_widget = QWidget()
@@ -56,8 +54,20 @@ class MainWindow(QMainWindow):
         self.horizonal_layout.addWidget(self.tabs)
         self.layout.addLayout(self.horizonal_layout)
 
+        time_slider_box = QVBoxLayout()
+        self.time_slider = QSlider(Qt.Horizontal)
+        self.time_slider.setMinimum(0)
+        self.time_slider.setMaximum(50)
+        self.time_slider.setValue(self.slider_val)
+        self.time_slider.setTickPosition(QSlider.TicksBothSides)
+        self.time_slider.setTickInterval(10)
+        self.time_slider.valueChanged.connect(self.time_slider_update)
+        time_slider_box.addWidget(self.time_slider)
+        self.layout.addLayout(time_slider_box)
+
         #Index control buttons
         index_control_layout = QHBoxLayout() #this is a horizontal layout box, it puts widget right next to each other
+
 
         self.next_button = QPushButton("next index",self)
         self.next_button.setStyleSheet("background-color: #006699; color: #FFC600;")
@@ -75,6 +85,12 @@ class MainWindow(QMainWindow):
         index_control_layout.addWidget(self.next_button)
 
         self.layout.addLayout(index_control_layout)
+
+    def time_slider_update(self):
+        self.slider_val = self.time_slider.value()
+        plot_ref=self.ob_plot
+        plot_ref.setXRange(self.global_time-(self.global_time/self.slider_val),self.global_time)
+        print(self.slider_val)
 
     def setup_threshold_incrmentor(self):
         self.dB_incrementer = QVBoxLayout()
@@ -105,7 +121,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(tab, "spectrogram")
 
     def load_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","(*.h5)") #filters out files for h5 files
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","(*)") #filters out files for h5 files
         self.index = 0
         if file_path:
             self.current_file_path = file_path
@@ -128,7 +144,8 @@ class MainWindow(QMainWindow):
         S_coarse = S_trim.reshape(len(f_coarse), freq_bin_factor, T).max(axis=1) #so basically it would reshape the spectrogram to len(f_coarse) number of bins, each bin is shaped(freq_bin_factor,T)
 
         threshold = np.mean(S_coarse)
-        self.dB_spin_box.setValue(threshold)
+        #print(float(threshold))
+        self.dB_spin_box.setValue(int(threshold))
         threshold = self.threshold
         occupancy = (S_coarse > threshold).astype(float)
         
@@ -139,7 +156,6 @@ class MainWindow(QMainWindow):
         img.setImage(occupancy.T)
         plot.setLabel("left", "Frequency (kHz)")
         plot.setLabel("bottom", "Time (s)")
-
         freq_total = (f[-1] - f[0])
 
         img.setRect(pg.QtCore.QRectF(
@@ -150,8 +166,9 @@ class MainWindow(QMainWindow):
         ))
                         
         self.binary_occupany_layout.addItem(plot)
-
-
+        viewbox_call=plot.getViewBox()
+        viewbox_call.setLimits(yMin=f.min()/1e3, yMax=f.max()/1e3)
+    
     def append_data_binary_occupany(self,f,time_bins,Sxx_db):
         plot = self.ob_plot
 
@@ -239,14 +256,6 @@ class MainWindow(QMainWindow):
             self.plot_data_from_file(self.current_file_path)
             self.index_count.setText(str(self.index))
 
-    def loadDataset(self, key):
-        """Load an HDF5 dataset into a Pandas DataFrame"""
-        ds = self.h5file[key]
-        data = np.empty(len(ds), dtype=ds.dtype)
-        if len(ds) != 0:
-            ds.read_direct(data)
-        return pd.DataFrame(data)
-
     def plot_data_from_file(self, file_path):
         try:
             with h5py.File(file_path, 'r') as f:
@@ -260,7 +269,7 @@ class MainWindow(QMainWindow):
                     if len(data) % 2 != 0:
                        sample = data[:-1]
                     iq_data = sample[::2] + 1j*sample[1::2]
-                    
+                
                     f,time_bins,Sxx_db = spectrogram_setup.calculate_spectrogram(iq_data,fs)
                 
                     if(self.index == 0): #checks if its loading a new file
