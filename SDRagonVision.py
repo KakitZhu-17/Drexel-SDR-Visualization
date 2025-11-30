@@ -16,10 +16,12 @@ class MainWindow(QMainWindow):
         self.max_index = None
         self.current_file_path = None
         self.global_time = 0
+        self.global_time_step=0
         self.bin_factor = 6
         self.colormap_scheme = "viridis"
         self.threshold = -20
         self.slider_val = 1
+        self.current_x_range = [0,0]
 
         #===============actual layout stuff===================================
         self.central_widget = QWidget()
@@ -56,7 +58,7 @@ class MainWindow(QMainWindow):
 
         time_slider_box = QVBoxLayout()
         self.time_slider = QSlider(Qt.Horizontal)
-        self.time_slider.setMinimum(0)
+        self.time_slider.setMinimum(1)
         self.time_slider.setMaximum(50)
         self.time_slider.setValue(self.slider_val)
         self.time_slider.setTickPosition(QSlider.TicksBothSides)
@@ -89,8 +91,7 @@ class MainWindow(QMainWindow):
     def time_slider_update(self):
         self.slider_val = self.time_slider.value()
         plot_ref=self.ob_plot
-        plot_ref.setXRange(self.global_time-(self.global_time/self.slider_val),self.global_time)
-        print(self.slider_val)
+        plot_ref.setXRange(self.current_x_range[1]-(1/self.slider_val),self.current_x_range[1],padding=0)
 
     def setup_threshold_incrmentor(self):
         self.dB_incrementer = QVBoxLayout()
@@ -126,6 +127,10 @@ class MainWindow(QMainWindow):
         if file_path:
             self.current_file_path = file_path
             self.plot_data_from_file(file_path)
+
+    def update_view_range(self):
+        #print(self.ob_plot.viewRange()[0])
+        self.current_x_range = self.ob_plot.viewRange()[0]
             
 
     def binary_occupancy_from_data(self,f,time_bins,Sxx_db):
@@ -167,7 +172,8 @@ class MainWindow(QMainWindow):
                         
         self.binary_occupany_layout.addItem(plot)
         viewbox_call=plot.getViewBox()
-        viewbox_call.setLimits(yMin=f.min()/1e3, yMax=f.max()/1e3)
+        viewbox_call.setLimits(xMin=0,xMax=self.global_time+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+        viewbox_call.sigRangeChanged.connect(self.update_view_range)
     
     def append_data_binary_occupany(self,f,time_bins,Sxx_db):
         plot = self.ob_plot
@@ -203,7 +209,10 @@ class MainWindow(QMainWindow):
         ))
 
         plot.addItem(img)
-        plot.setXRange(self.global_time, self.global_time+time_bins[-1])
+        viewbox_call=plot.getViewBox()
+        viewbox_call.setLimits(xMin=0,xMax=self.global_time+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+        plot.setXRange(self.global_time, self.global_time+time_bins[-1],padding=0)
+        self.global_time_step = time_bins[-1]
 
 
     def spectrogram_from_data(self,f,time_bins,Sxx_db):
@@ -248,6 +257,8 @@ class MainWindow(QMainWindow):
             self.index+=1
             self.plot_data_from_file(self.current_file_path)
             self.index_count.setText(str(self.index))
+            self.slider_val = 1
+            self.time_slider.setValue(1)
     
     def prev_button_click(self):
         #print(self.index)
