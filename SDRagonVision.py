@@ -5,6 +5,7 @@ import h5py
 import pyqtgraph as pg
 import numpy as np
 import spectrogram_setup
+from dragonradio.signal import decompressIQData
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -275,13 +276,7 @@ class MainWindow(QMainWindow):
                 fs = f[key]["fs"][self.index]
                 self.max_index = len(f[key]["iq_data"])
                 if(data.dtype == "int8"):
-                    #converts int8 to complex
-                    sample = data
-                    if len(data) % 2 != 0:
-                       sample = data[:-1]
-                    iq_data = sample[::2] + 1j*sample[1::2]
-                
-                    f,time_bins,Sxx_db = spectrogram_setup.calculate_spectrogram(iq_data,fs)
+                    f,time_bins,Sxx_db = spectrogram_setup.calculate_spectrogram(decompressIQData(data),fs)
                 
                     if(self.index == 0): #checks if its loading a new file
                         self.binary_occupancy_from_data(f,time_bins,Sxx_db)
