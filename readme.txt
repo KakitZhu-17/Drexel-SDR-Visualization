@@ -4,6 +4,7 @@
 4.go into vscode and connect to WSL using distro to select 20.04
 3.on terminal use this command:
     git clone --recursive -b wip/radiowars2024 https://github.com/drexelwireless/dragonradio.git
-4.once files are done cloning, go into dragonradio and run the setup.py file (you can use venv)
-5.that should get you the dragonradio library to run decompressIQData
+4.once files are done cloning, cd into dragonradio and run the setup.py file with thsi command: python setup.py install
+(you can use venv (), it probably reccomended anyway heres the command: sudo apt install -y python3-virtualenv virtualenv , make sure sudo is actually installed before running this)
+5.that should get you the dragonradio library to run decompressIQData and the app itself
 NOTE: you may need to reinstall some libraries like numpy, scipy, pyqt5, pyqtgraph
