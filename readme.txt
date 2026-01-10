@@ -1,3 +1,5 @@
+for windows users
+
 1.get wsl to run on vscode use this command: wsl --install
 (there will be some setup stuff like username and password)
 2.install ubuntu 20.04 (get from microsoft store or ubuntu releases)
@@ -8,3 +10,5 @@
 (you can use venv (), it probably reccomended anyway heres the command: sudo apt install -y python3-virtualenv virtualenv , make sure sudo is actually installed before running this)
 5.that should get you the dragonradio library to run decompressIQData and the app itself
 NOTE: you may need to reinstall some libraries like numpy, scipy, pyqt5, pyqtgraph
+
+also install dragonradio/python/dragonradio-tools/setup.py as well for traffic/mgen stuff. use python3 [filename] install once again in that path/dir

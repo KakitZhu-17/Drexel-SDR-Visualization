@@ -13,10 +13,10 @@ class spectrogram(initial_fields):
         layout = QVBoxLayout()
         layout.addWidget(self.setup_spectrogram)
         tab.setLayout(layout)
-        self.tabs.addTab(tab, "spectrogram")
+        self.tabs.addTab(tab, "Spectrogram")
 
 
-    def spectrogram_from_file(self,f,time_bins,Sxx_db):
+    def spectrogram_from_file(self,f,time_bins,Sxx_db,timestamps):
         
         self.setup_spectrogram.clear()
         self.spectrogram = self.setup_spectrogram.addPlot(title="Spectrogram")
@@ -43,7 +43,7 @@ class spectrogram(initial_fields):
         colorbar.setImageItem(img)
 
         img.setRect(pg.QtCore.QRectF(
-            time_bins[0],       
+            timestamps[self.index],       
             f[0]/1e3,       
             time_bins[-1],   
             freq_step/1e3

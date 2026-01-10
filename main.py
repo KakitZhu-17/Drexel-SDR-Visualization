@@ -4,8 +4,11 @@ from PyQt5.QtCore import Qt
 from ui_components import ui_components
 from spectrogram import spectrogram
 from RF_view import RF_view
+from traffic_view import Traffic_view
+from linked_view import linked_view 
 
-class MainWindow(ui_components,spectrogram,RF_view):
+
+class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SDRagon Vision")
@@ -21,6 +24,8 @@ class MainWindow(ui_components,spectrogram,RF_view):
         #the actual plots
         self.RF_view_tab()
         self.spectrogram_tab()
+        self.traffic_tab()
+        self.linked_tab()
 
         #threhold adjuster
         self.setup_threshold_incrementor()
@@ -31,7 +36,8 @@ class MainWindow(ui_components,spectrogram,RF_view):
         self.threshold_box.addWidget(self.tabs)
         self.layout.addLayout(self.threshold_box)
 
-        self.time_slider_setup()
+        #self.time_progress_slider_setup()
+        self.time_stretcher_setup()
 
         self.index_controls()
 

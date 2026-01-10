@@ -7,6 +7,8 @@ from initial import initial_fields
 from dragonradio.signal import decompressIQData
 from spectrogram import spectrogram
 from RF_view import RF_view
+from traffic_view import Traffic_view
+from linked_view import linked_view
 
 class ui_components(QMainWindow,initial_fields):
     def __init__(self):
@@ -43,7 +45,7 @@ class ui_components(QMainWindow,initial_fields):
         self.next_button.setStyleSheet("background-color: #006699; color: #FFC600;")
         self.next_button.clicked.connect(self.next_button_click)
 
-        self.index_count = QLabel("1",self)
+        self.index_count = QLabel(str(self.index),self)
         self.index_count.setAlignment(Qt.AlignCenter)
 
         self.prev_button = QPushButton("prev index",self)
@@ -56,23 +58,47 @@ class ui_components(QMainWindow,initial_fields):
 
         self.layout.addLayout(index_control_layout)
 
-    def time_slider_setup(self):
+    def time_stretcher_setup(self):
         self.slider_val = 1
         time_slider_box = QVBoxLayout()
         self.time_slider = QSlider(Qt.Horizontal)
+        #sets initial slider settings
         self.time_slider.setMinimum(1)
         self.time_slider.setMaximum(50)
         self.time_slider.setValue(self.slider_val)
         self.time_slider.setTickPosition(QSlider.TicksBothSides)
         self.time_slider.setTickInterval(10)
-        self.time_slider.valueChanged.connect(self.time_slider_update)
+        #calls function to update
+        self.time_slider.valueChanged.connect(self.time_stretcher_update)
         time_slider_box.addWidget(self.time_slider)
         self.layout.addLayout(time_slider_box)
 
-    def time_slider_update(self):
+    def time_stretcher_update(self):
         self.slider_val = self.time_slider.value()
         plot_ref=self.ob_plot
         plot_ref.setXRange(self.current_x_range[1]-(1/self.slider_val),self.current_x_range[1],padding=0)
+        plot_ref2=self.linked_ob_plot
+        plot_ref2.setXRange(self.current_x_range[1]-(1/self.slider_val),self.current_x_range[1],padding=0)
+        plot_ref3=self.setup_linked_traffic
+        plot_ref3.setXRange(self.current_x_range[1]-(1/self.slider_val),self.current_x_range[1],padding=0)
+
+    def time_progress_slider_setup(self):
+        time_progress_box = QVBoxLayout()
+        self.time_progress = QSlider(Qt.Horizontal)
+        self.time_progress.setMinimum(0)
+        self.time_progress.setMaximum(1)
+        self.time_progress.setValue(0)
+        #self.time_progress.setTickPosition(QSlider.TicksBothSides)
+        #self.time_progress.setTickInterval(10)
+        self.time_progress.valueChanged.connect(self.time_progress_slider_update)
+        time_progress_box.addWidget(self.time_progress)
+        self.layout.addLayout(time_progress_box)
+
+    def time_progress_slider_update(self):
+        self.time_val = self.current_x_range[0]
+        print("test",self.time_progress.value(),int(self.time_val),self.current_x_range)
+        plot_ref=self.ob_plot
+        plot_ref.setXRange(self.time_val,self.time_val+self.time_step,padding=0)
 
     def setup_threshold_incrementor(self):
         self.dB_incrementer = QVBoxLayout()
@@ -87,20 +113,23 @@ class ui_components(QMainWindow,initial_fields):
 
 
     def load_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","(*.h5)") #filters out files for h5 files
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
         self.index = 0
         if file_path:
-            self.current_file_path = file_path
-            self.plot_data_from_file(file_path)
+            if(file_path.endswith('.drc')):
+                self.traffic_from_file(file_path)
+                self.linked_traffic_from_file(file_path)
+            else:
+                self.current_file_path = file_path
+                self.plot_data_from_file(file_path)
 
     def update_view_range(self):
-        #print(self.ob_plot.viewRange()[0])
         self.current_x_range = self.ob_plot.viewRange()[0]
             
 
     def next_button_click(self):
-        #print(self.index)
         if(self.index < self.max_index-1):
+            #print(self.ob_plot.viewRange()[0][0])
             self.index+=1
             self.plot_data_from_file(self.current_file_path)
             self.index_count.setText(str(self.index))
@@ -110,36 +139,47 @@ class ui_components(QMainWindow,initial_fields):
     def prev_button_click(self):
         if(self.index >= 0):
             self.index-=1
-            self.plot_data_from_file(self.current_file_path)
+            self.plot_data_from_file(self.current_file_path,True)
             self.index_count.setText(str(self.index))
 
-    def plot_data_from_file(self, file_path):
+    def plot_data_from_file(self, file_path, prev = False):
         try:
             with h5py.File(file_path, 'r') as f:
                 key = 'snapshots'
+                #print(f.keys())
                 data = f[key]["iq_data"][self.index]
                 fs = f[key]["fs"][self.index]
+                timestamps = f['snapshots']['timestamp']
                 self.max_index = len(f[key]["iq_data"])
                 if(data.dtype == "int8"):
                     f,time_bins,Sxx_db = math_methods.calculate_spectrogram(decompressIQData(data),fs)
+                    self.time_step = time_bins[-1]
                 
                     if(self.index == 0): #checks if its loading a new file
-                        self.binary_occupancy_from_file(f,time_bins,Sxx_db)
-                        self.spectrogram_from_file(f,time_bins,Sxx_db)
-                    else:
+                        self.binary_occupancy_from_file(f,time_bins,Sxx_db,timestamps)
+                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                        self.linked_binary_occupancy_from_file(f,time_bins,Sxx_db,timestamps)
+                    elif(not prev):
                         self.append_data_binary_occupany(f,time_bins,Sxx_db)
-                        self.spectrogram_from_file(f,time_bins,Sxx_db)
-                    self.global_time += time_bins[-1]
+                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                        self.linked_append_data_binary_occupany(f,time_bins,Sxx_db)
+                    else:
+                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                    if(self.index+1 < self.max_index):
+                        self.global_time = timestamps[self.index+1]
 
                 elif(data.dtype == "complex64"):
                     f,time_bins,Sxx_db = math_methods.calculate_spectrogram(data,fs)
-                    if(self.index == 0):
-                        self.binary_occupancy_from_file(f,time_bins,Sxx_db)
-                        self.spectrogram_from_file(f,time_bins,Sxx_db)
-                    else:
+                    if(self.index == 0): #checks if its loading a new file
+                        self.binary_occupancy_from_file(f,time_bins,Sxx_db,timestamps)
+                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                    elif(not prev):
                         self.append_data_binary_occupany(f,time_bins,Sxx_db)
-                        self.spectrogram_from_file(f,time_bins,Sxx_db)
-                    self.global_time += time_bins[-1]
+                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                    else:
+                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                    if(self.index+1 < self.max_index):
+                        self.global_time = timestamps[self.index+1]
                 
                 else:
                     print(f[key]["iq_data"][self.index].dtype)
