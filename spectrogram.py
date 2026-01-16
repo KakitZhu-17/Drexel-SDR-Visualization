@@ -13,7 +13,8 @@ class spectrogram(initial_fields):
         layout = QVBoxLayout()
         layout.addWidget(self.setup_spectrogram)
         tab.setLayout(layout)
-        self.tabs.addTab(tab, "Spectrogram")
+        # Changed to return tab
+        return tab
 
 
     def spectrogram_from_file(self,f,time_bins,Sxx_db,timestamps):

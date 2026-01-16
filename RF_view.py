@@ -15,7 +15,8 @@ class RF_view(initial_fields):
         layout = QVBoxLayout() #this is a vertical layout box, it puts widgets on top of each other
         layout.addWidget(self.binary_occupany_layout)
         tab.setLayout(layout)
-        self.tabs.addTab(tab, "RF view")
+        # Changed to return tab
+        return tab
 
     def binary_occupancy_from_file(self,f,time_bins,Sxx_db,timestamps):
         self.binary_occupany_layout.clear()

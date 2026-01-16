@@ -6,8 +6,16 @@ import sys
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 from initial import initial_fields
-import os
-from PyQt5 import QtCore
+
+#file_name = "send.drc"
+
+#send_arr = mgen.parseSend(file_name)
+#send_df = pd.DataFrame(send_arr).astype({ 'timestamp': 'datetime64[ns, UTC]'}, copy=False)
+#test = send_df.to_numpy()
+#print(send_arr)
+#print(test[:,0])
+#print(test[:,-1])
+
 
 class Traffic_view(initial_fields):
     def __init__(self):
@@ -19,81 +27,32 @@ class Traffic_view(initial_fields):
         layout = QVBoxLayout()
         layout.addWidget(self.setup_traffic)
         tab.setLayout(layout)
-        self.tabs.addTab(tab, "Traffic View")
-        self.setup_traffic.setLabel("left", "Mbps")
-        self.setup_traffic.setLabel("bottom", "Time (s)")
+        # Changed to return tab
+        return tab
+
 
     def traffic_from_file(self,file_path):
         
         self.setup_traffic.clear()
-        try:
-            send_arr = mgen.parseSend(file_path)
-            
-            send_df = pd.DataFrame(send_arr).astype({ 'timestamp': 'datetime64[ns, UTC]'}, copy=False)
-            traffic_arr = send_df.to_numpy()
-            
-            plot = self.setup_traffic
-            datetime = send_df['timestamp']
-            
-            send_dt_array_ns_UTC = np.array(datetime, dtype='datetime64[ns]')
-           
-            send_elapsed_time_timedelta = send_dt_array_ns_UTC - send_dt_array_ns_UTC[0]
-            send_time_seconds= send_elapsed_time_timedelta / np.timedelta64(1, 's')
-            plot.plot(x=send_time_seconds.astype(float),y=traffic_arr[:,1].astype(int),pen=pg.mkPen('c', width=2))
-            bargraph = pg.BarGraphItem(x=send_time_seconds.astype(float), height=traffic_arr[:,-1].astype(int), width=0.001,brush="blue",pen=None)
-            plot.addItem(bargraph)
-            bargraph.setOpacity(0.3)
-            plot.setXRange(self.current_x_range[0], self.current_x_range[0]+self.time_step,padding=0)
-        except Exception as e:
-            print("test error:",e)
 
-    def traffic_logs_from_file(self,file_path):
+        send_arr = mgen.parseSend(file_path)
+        send_df = pd.DataFrame(send_arr).astype({ 'timestamp': 'datetime64[ns, UTC]'}, copy=False)
+        traffic_arr = send_df.to_numpy()
+        #print(send_df)
         plot = self.setup_traffic
-        plot.clear()
-        try:
-            files = [f for f in os.listdir(file_path) if os.path.isfile(os.path.join(file_path, f))]
-            send_arr = mgen.parseSend(file_path+"/"+files[0])
-            send_df = pd.DataFrame(send_arr).astype({ 'timestamp': 'datetime64[ns, UTC]'}, copy=False)
-            send_traffic_arr = send_df.to_numpy()
-            send_datetime = send_df['timestamp']
-            send_dt_array_ns_UTC = np.array(send_datetime, dtype='datetime64[ns]')
-            send_elapsed_time_timedelta = send_dt_array_ns_UTC - send_dt_array_ns_UTC[0]
-            send_time_seconds= send_elapsed_time_timedelta / np.timedelta64(1, 's')
-
-            recv_arr = mgen.parseRecv(file_path+"/"+files[1])
-            recv_df = pd.DataFrame(recv_arr).astype({ 'timestamp': 'datetime64[ns, UTC]'}, copy=False)
-            #print(recv_df)
-            recv_traffic_arr = recv_df.to_numpy()
-            recv_datetime = recv_df['timestamp']
-            recv_dt_array_ns_UTC = np.array(recv_datetime, dtype='datetime64[ns]')
-            recv_elapsed_time_timedelta = recv_dt_array_ns_UTC - recv_dt_array_ns_UTC[0]
-            recv_time_seconds= recv_elapsed_time_timedelta / np.timedelta64(1, 's')
-
-            latency_dt = recv_datetime - send_datetime
-            latency_td = latency_dt/np.timedelta64(1, 's')
-            latency=latency_td.dropna().to_numpy()
-
-            #print(latency)
-            #send_flow_pen_color = (200, 0, 0, 150)
-            #recv_flow_pen_color = (0, 200, 0, 150)
-            plot.plot(x=send_time_seconds.astype(float),y=send_traffic_arr[:,1].astype(int),pen=(255, 0, 0, 150)) #flow line for send
-            plot.plot(x=recv_time_seconds.astype(float),y=recv_traffic_arr[:,1].astype(int),pen=(0, 0, 255, 150)) #flow line for recv/listen
-            plot.plot(x=send_time_seconds.astype(float),y=send_traffic_arr[:,-1].astype(int),pen=pg.mkPen(color=(0, 100, 220), width=1, style=QtCore.Qt.DashLine),fillLevel=0,brush=pg.mkBrush(color=(0, 100, 200,30))) #size in time for send
-            #plot.plot(x=recv_time_seconds.astype(float),y=recv_traffic_arr[:,-1].astype(int),pen=pg.mkPen(color=(220, 220, 0)),fillLevel=0,brush=pg.mkBrush(color=(200,200,0,10))) #size in time for recv
-            #for elements in latency:
-            #    print(elements)
-            #latency_bargraph = pg.BarGraphItem(x=recv_time_seconds.astype(float), height=latency.astype(float), width=0.01,brush="red",pen=None)
-            #print(send_traffic_arr[:,-1])
-            #send_bargraph = pg.BarGraphItem(x=send_time_seconds.astype(float), height=send_traffic_arr[:,-1].astype(int), width=0.001,brush="grey",pen=None)
-            recv_bargraph = pg.BarGraphItem(x=recv_time_seconds.astype(float), height=recv_traffic_arr[:,-1].astype(int), width=0.0008,brush="blue",pen=None)
-            #plot.addItem(send_bargraph)
-            plot.addItem(recv_bargraph)
-            #plot.addItem(latency_bargraph)
-            recv_bargraph.setOpacity(0.5)
-            #send_bargraph.setOpacity(0.1)
-            #latency_bargraph.setOpacity(1)
-            plot.plot(x=recv_time_seconds.astype(float),y=latency.astype(float),pen=(255, 255, 255, 200)) #latency in time line
-            plot.setXRange(self.current_x_range[0], self.current_x_range[0]+self.time_step,padding=0)
-        except Exception as e:
-            print("test error:",e)
+        datetime = send_df['timestamp']
+        #print(datetime.dtype)
+        dt_array_ns_UTC = np.array(datetime, dtype='datetime64[ns]')
+        #print(dt_array_ns_UTC)
+        elapsed_time_timedelta = dt_array_ns_UTC - dt_array_ns_UTC[0]
+        #print(elapsed_time_timedelta)
+        time_seconds= elapsed_time_timedelta / np.timedelta64(1, 's')
+        #print(time_seconds.astype(float))
+        #test=datetime.to_numpy(dtype=int)
+        plot.plot(x=time_seconds.astype(float),y=traffic_arr[:,1].astype(int),pen=pg.mkPen('c', width=2))
+        #plot.showGrid(True)
+        bargraph = pg.BarGraphItem(x=time_seconds.astype(float), height=traffic_arr[:,-1].astype(int), width=0.001,brush="blue",pen=None)
+        plot.addItem(bargraph)
+        bargraph.setOpacity(0.3)
+        plot.setXRange(self.current_x_range[0], self.current_x_range[0]+self.time_step,padding=0)
    

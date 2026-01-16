@@ -36,12 +36,6 @@ class ui_components(QMainWindow,initial_fields):
         self.load_button.setStyleSheet("background-color: #006699; color: #FFC600;")
         self.load_button.clicked.connect(self.load_file)
         self.layout.addWidget(self.load_button)
-
-    def load_traffic_log_button(self):
-        self.load_traffic = QPushButton("Load traffic logs")
-        self.load_traffic.setStyleSheet("background-color: #006699; color: #FFC600;")
-        self.load_traffic.clicked.connect(self.load_traffic_file)
-        self.layout.addWidget(self.load_traffic)
     
     def index_controls(self):
         index_control_layout = QHBoxLayout() #this is a horizontal layout box, it puts widget right next to each other
@@ -129,14 +123,6 @@ class ui_components(QMainWindow,initial_fields):
                 self.current_file_path = file_path
                 self.plot_data_from_file(file_path)
 
-    def load_traffic_file(self):
-        file_path= QFileDialog.getExistingDirectory(None, "Select Folder", "")
-        self.index = 0
-        if file_path:
-            #print("loading traffic logs:",file_path)
-            self.traffic_logs_from_file(file_path)
-            self.traffic_logs_from_file_linked(file_path)
-
     def update_view_range(self):
         self.current_x_range = self.ob_plot.viewRange()[0]
             
@@ -160,11 +146,7 @@ class ui_components(QMainWindow,initial_fields):
         try:
             with h5py.File(file_path, 'r') as f:
                 key = 'snapshots'
-                #print(f["recv"].dtype)
-                #print(f["send"]["timestamp"])
-                #print(f["recv"]["timestamp"])
-                recv=f["recv"]["timestamp"]
-                send=f["send"]["timestamp"]
+                #print(f.keys())
                 data = f[key]["iq_data"][self.index]
                 fs = f[key]["fs"][self.index]
                 timestamps = f['snapshots']['timestamp']
