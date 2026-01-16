@@ -18,6 +18,7 @@ class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
         self.set_central_widget()
 
         self.loading_button()
+        self.load_traffic_log_button()
 
         self.tab_container()
 
@@ -38,7 +39,6 @@ class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
 
         #self.time_progress_slider_setup()
         self.time_stretcher_setup()
-
         self.index_controls()
 
     
