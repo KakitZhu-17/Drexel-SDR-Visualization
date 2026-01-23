@@ -128,9 +128,8 @@ class ui_components(QMainWindow,initial_fields):
             else:
                 self.current_file_path = file_path
                 self.max_index=self.get_file_len(file_path)
-                while(self.index < self.max_index):
-                    self.plot_all_data_from_file(file_path,self.index)
-                    self.index+=1
+                self.plot_data_from_file(file_path,False)
+
 
     def load_file_all(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
@@ -181,11 +180,7 @@ class ui_components(QMainWindow,initial_fields):
         try:
             with h5py.File(file_path, 'r') as f:
                 key = 'snapshots'
-                print(f["selftx"]["is_local"].dtype)
-                #print(f["selftx"]["fs"])
-                #print(f["recv"]["timestamp"])
-                recv=f["recv"]["timestamp"]
-                send=f["send"]["timestamp"]
+                #print(f["selftx"]["is_local"].dtype)
                 data = f[key]["iq_data"][self.index]
                 fs = f[key]["fs"][self.index]
                 timestamps = f['snapshots']['timestamp']
@@ -196,13 +191,11 @@ class ui_components(QMainWindow,initial_fields):
                 
                     if(self.index == 0): #checks if its loading a new file
                         self.binary_occupancy_from_file(f,time_bins,Sxx_db,timestamps)
-                        #self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
-                        self.spectrogram_test(f,time_bins,Sxx_db,timestamps)
+                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
                         self.linked_binary_occupancy_from_file(f,time_bins,Sxx_db,timestamps)
                     elif(not prev):
                         self.append_data_binary_occupany(f,time_bins,Sxx_db)
-                        #self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
-                        self.spectrogram_test(f,time_bins,Sxx_db,timestamps)
+                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
                         self.linked_append_data_binary_occupany(f,time_bins,Sxx_db)
                     else:
                         self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
