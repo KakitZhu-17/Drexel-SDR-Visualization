@@ -26,7 +26,7 @@ class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
         self.RF_view_tab()
         self.spectrogram_tab()
         self.traffic_tab()
-        self.linked_tab()
+        #self.linked_tab()
 
         #threhold adjuster
         self.setup_threshold_incrementor()
@@ -39,7 +39,7 @@ class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
 
         #self.time_progress_slider_setup()
         self.time_stretcher_setup()
-        self.index_controls()
+        #self.index_controls()
 
     
 

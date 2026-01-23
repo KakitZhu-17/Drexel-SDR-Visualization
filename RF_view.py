@@ -16,10 +16,13 @@ class RF_view(initial_fields):
         layout.addWidget(self.binary_occupany_layout)
         tab.setLayout(layout)
         self.tabs.addTab(tab, "RF view")
+        self.ob_plot = self.binary_occupany_layout.addPlot(title="RF View")
+        self.ob_plot.setLabel("left", "Frequency (kHz)")
+        self.ob_plot.setLabel("bottom", "Time (s)")
 
     def binary_occupancy_from_file(self,f,time_bins,Sxx_db,timestamps):
         self.binary_occupany_layout.clear()
-        self.ob_plot = self.binary_occupany_layout.addPlot(title="RF View")
+        #self.ob_plot = self.binary_occupany_layout.addPlot(title="RF View")
 
         threshold = np.mean(Sxx_db)
         self.dB_spin_box.setValue(int(threshold))
@@ -31,8 +34,6 @@ class RF_view(initial_fields):
         plot.addItem(img)
         img.setColorMap("magma")
         img.setImage(occupancy.T)
-        plot.setLabel("left", "Frequency (kHz)")
-        plot.setLabel("bottom", "Time (s)")
         freq_total = (f[-1] - f[0])
 
         #print(timestamps[0],timestamps[0]+time_bins[-1])
@@ -87,6 +88,35 @@ class RF_view(initial_fields):
         viewbox_call.setLimits(xMin=0,xMax=self.global_time+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
         plot.setXRange(self.global_time, self.global_time+time_bins[-1],padding=0)
 
+    def append_all_data_binary_occupany(self,f,time_bins,Sxx_db,timestamps):
+
+        if(self.index == 0):
+            self.ob_plot.clear()
+
+        plot = self.ob_plot 
+        occupancy = (Sxx_db > np.mean(Sxx_db) ).astype(float)
+
+        img = pg.ImageItem()
+        img.setColorMap("magma")
+        img.setImage(occupancy.T)
+
+        start_time = 0   
+
+        freq_step = (f[-1] - f[0])
+
+        img.setRect(pg.QtCore.QRectF(
+            timestamps[self.index],
+            f[0]/1e3,
+            time_bins[-1],                                
+            freq_step/ 1e3
+        ))
+
+        plot.addItem(img)
+
+        if(self.index == self.max_index-1):
+            viewbox_call=plot.getViewBox()
+            viewbox_call.setLimits(xMin=0,xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+            plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
     
 
     

@@ -34,7 +34,7 @@ class ui_components(QMainWindow,initial_fields):
     def loading_button(self):
         self.load_button = QPushButton("Load Log File")
         self.load_button.setStyleSheet("background-color: #006699; color: #FFC600;")
-        self.load_button.clicked.connect(self.load_file)
+        self.load_button.clicked.connect(self.load_file_all)
         self.layout.addWidget(self.load_button)
 
     def load_traffic_log_button(self):
@@ -124,10 +124,31 @@ class ui_components(QMainWindow,initial_fields):
         if file_path:
             if(file_path.endswith('.drc')):
                 self.traffic_from_file(file_path)
-                self.linked_traffic_from_file(file_path)
+                #self.linked_traffic_from_file(file_path)
             else:
                 self.current_file_path = file_path
-                self.plot_data_from_file(file_path)
+                self.max_index=self.get_file_len(file_path)
+                while(self.index < self.max_index):
+                    self.plot_all_data_from_file(file_path,self.index)
+                    self.index+=1
+
+    def load_file_all(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
+        self.index = 0
+        if file_path:
+            if(file_path.endswith('.drc')):
+                self.traffic_from_file(file_path)
+                #self.linked_traffic_from_file(file_path)
+            else:
+                try:
+                    with h5py.File(file_path, 'r') as f:
+                        key = 'snapshots'
+                        self.max_index = int(len(f[key]["iq_data"]))
+                        while(self.index < self.max_index):
+                            self.plot_all_data_from_file(f,self.index)
+                            self.index+=1
+                except Exception as e:
+                    print(f"Error loading or plotting file: {e}")
 
     def load_traffic_file(self):
         file_path= QFileDialog.getExistingDirectory(None, "Select Folder", "")
@@ -160,8 +181,8 @@ class ui_components(QMainWindow,initial_fields):
         try:
             with h5py.File(file_path, 'r') as f:
                 key = 'snapshots'
-                #print(f["recv"].dtype)
-                #print(f["send"]["timestamp"])
+                print(f["selftx"]["is_local"].dtype)
+                #print(f["selftx"]["fs"])
                 #print(f["recv"]["timestamp"])
                 recv=f["recv"]["timestamp"]
                 send=f["send"]["timestamp"]
@@ -175,11 +196,13 @@ class ui_components(QMainWindow,initial_fields):
                 
                     if(self.index == 0): #checks if its loading a new file
                         self.binary_occupancy_from_file(f,time_bins,Sxx_db,timestamps)
-                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                        #self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                        self.spectrogram_test(f,time_bins,Sxx_db,timestamps)
                         self.linked_binary_occupancy_from_file(f,time_bins,Sxx_db,timestamps)
                     elif(not prev):
                         self.append_data_binary_occupany(f,time_bins,Sxx_db)
-                        self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                        #self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
+                        self.spectrogram_test(f,time_bins,Sxx_db,timestamps)
                         self.linked_append_data_binary_occupany(f,time_bins,Sxx_db)
                     else:
                         self.spectrogram_from_file(f,time_bins,Sxx_db,timestamps)
@@ -204,3 +227,14 @@ class ui_components(QMainWindow,initial_fields):
 
         except Exception as e:
             print(f"Error loading or plotting file: {e}")
+
+    def plot_all_data_from_file(self, file,index):
+        key = 'snapshots'
+        timestamps = file['snapshots']['timestamp']
+        data = file[key]["iq_data"][index]
+        fs = file[key]["fs"][index]
+        f,time_bins,Sxx_db = math_methods.calculate_spectrogram(decompressIQData(data),fs)
+        self.plot_all_spectrogram(f,time_bins,Sxx_db,timestamps)
+        self.append_all_data_binary_occupany(f,time_bins,Sxx_db,timestamps)
+
+    
