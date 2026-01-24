@@ -10,3 +10,6 @@ class initial_fields():
         self.threshold = -20
         self.current_x_range = [0,0]
         self.total_time_len = 0
+
+    def update_view_range(self):
+        self.current_x_range = self.ob_plot.viewRange()[0]

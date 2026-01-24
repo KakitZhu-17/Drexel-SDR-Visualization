@@ -19,47 +19,16 @@ class spectrogram(initial_fields):
         self.spectrogram.setLabel("bottom", "Time (s)")
         self.images = []
 
-
-    def spectrogram_from_file(self,f,time_bins,Sxx_db,timestamps):
-        
-        self.setup_spectrogram.clear()
-        self.spectrogram = self.setup_spectrogram.addPlot(title="Spectrogram")
-        
-        plot = self.spectrogram
-
-        img = pg.ImageItem()
-        plot.addItem(img)
-        cmap = pg.colormap.get(self.colormap_scheme)
-        lut = cmap.getLookupTable(0.0, 1.0, 256)
-        img.setLookupTable(lut)
-        img.setImage(Sxx_db.T)
-        
-        freq_step = (f[-1] - f[0])
-
-        colorbar = pg.ColorBarItem(
-            values=(Sxx_db.min(), Sxx_db.max()), 
-            colorMap= cmap,
-            label="Power (dB)"
-        )
-
-        colorbar.setImageItem(img)
-
-        img.setRect(pg.QtCore.QRectF(
-            timestamps[self.index],       
-            f[0]/1e3,       
-            time_bins[-1],   
-            freq_step/1e3
-        ))
-             
-        self.setup_spectrogram.addItem(plot)
-        #self.setup_spectrogram.addItem(colorbar)
-
     def plot_all_spectrogram(self,f,time_bins,Sxx_db,timestamps):
         
         plot = self.spectrogram
 
         if(self.index == 0):
             self.setup_spectrogram.clear()
+            viewbox_call=plot.getViewBox()
+            viewbox_call.setLimits(xMin=0,xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+            viewbox_call.sigRangeChanged.connect(self.update_view_range)
+            plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
 
         img = pg.ImageItem()
         plot.addItem(img)
@@ -82,9 +51,6 @@ class spectrogram(initial_fields):
         self.images.append(img)
 
         if(self.index == self.max_index-1):
-            viewbox_call=plot.getViewBox()
-            viewbox_call.setLimits(xMin=0,xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
-            plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
             colorbar = pg.ColorBarItem(
                 values=(0, Sxx_db.max()), 
                 colorMap= cmap,

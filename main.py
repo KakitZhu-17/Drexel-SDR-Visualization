@@ -5,10 +5,10 @@ from ui_components import ui_components
 from spectrogram import spectrogram
 from RF_view import RF_view
 from traffic_view import Traffic_view
-from linked_view import linked_view 
+#from linked_view import linked_view 
 
 
-class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
+class MainWindow(ui_components,spectrogram,RF_view,Traffic_view):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SDRagon Vision")
@@ -29,13 +29,13 @@ class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
         #self.linked_tab()
 
         #threhold adjuster
-        self.setup_threshold_incrementor()
+        #self.setup_threshold_incrementor()
 
-        self.threshold_box = QHBoxLayout()
-        self.threshold_box.addLayout(self.dB_incrementer)
+        #self.threshold_box = QHBoxLayout()
+        #self.threshold_box.addLayout(self.dB_incrementer)
 
-        self.threshold_box.addWidget(self.tabs)
-        self.layout.addLayout(self.threshold_box)
+        #self.threshold_box.addWidget(self.tabs)
+        #self.layout.addLayout(self.threshold_box)
 
         #self.time_progress_slider_setup()
         self.time_stretcher_setup()
