@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QApplication,QHBoxLayout
 from PyQt5.QtCore import Qt
-from ui_components import ui_components
+from ui_components import ui_components, file_slot
 from spectrogram import spectrogram
 from RF_view import RF_view
 from traffic_view import Traffic_view
@@ -22,20 +22,11 @@ class MainWindow(ui_components,spectrogram,RF_view,Traffic_view):
 
         self.tab_container()
 
-        #the actual plots
-        self.RF_view_tab()
-        self.spectrogram_tab()
-        self.traffic_tab()
-        #self.linked_tab()
-
-        #threhold adjuster
-        #self.setup_threshold_incrementor()
-
-        #self.threshold_box = QHBoxLayout()
-        #self.threshold_box.addLayout(self.dB_incrementer)
-
-        #self.threshold_box.addWidget(self.tabs)
-        #self.layout.addLayout(self.threshold_box)
+        fileslot = file_slot()
+        setup_file_slot = fileslot.slot_setup()
+        self.tabs.addTab(setup_file_slot ,"radio1")
+        self.slot_arr.append(fileslot)
+        
 
         #self.time_progress_slider_setup()
         self.time_stretcher_setup()

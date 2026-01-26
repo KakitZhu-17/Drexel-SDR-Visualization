@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QMainWindow,QTabWidget ,QSpinBox, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QSlider
-#from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
+import pyqtgraph as pg
 import h5py
 import math_methods
 from initial import initial_fields
@@ -14,6 +14,7 @@ from linked_view import linked_view
 class ui_components(QMainWindow,initial_fields):
     def __init__(self):
         super().__init__()
+        self.slot_arr=[]
 
     def set_central_widget(self):
         self.central_widget = QWidget()
@@ -23,26 +24,47 @@ class ui_components(QMainWindow,initial_fields):
 
 
     def tab_container(self):
-        self.horizonal_layout = QHBoxLayout()
-
+        self.vertical_layout = QVBoxLayout()
         #For graph type tabs        
         self.tabs = QTabWidget()
+        self.tabs.setTabPosition(QTabWidget.TabPosition.West)
         self.tabs.setStyleSheet("background-color: white; color: black;")
-
-        self.horizonal_layout.addWidget(self.tabs)
-        self.layout.addLayout(self.horizonal_layout)
+        self.vertical_layout.addWidget(self.tabs)
+        self.layout.addLayout(self.vertical_layout)
 
     def loading_button(self):
         self.load_button = QPushButton("Load Log File")
         self.load_button.setStyleSheet("background-color: #006699; color: #FFC600;")
-        self.load_button.clicked.connect(self.load_file_all)
+        self.load_button.clicked.connect(self.load_file)
         self.layout.addWidget(self.load_button)
+
+
+    def load_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
+        self.index = 0
+        timer = QtCore.QTimer(self)
+        timer.setInterval(500)
+        if file_path:
+            if(file_path.endswith('.drc')):
+                self.traffic_from_file(file_path)
+            else:
+                try:
+                    f = h5py.File(file_path, 'r') 
+                    key = 'snapshots'
+                    self.max_index = int(len(f[key]["iq_data"]))
+                    timer.timeout.connect(lambda: self.slot_arr[0].timed_plotting(f,self.max_index,timer))
+                    timer.start()
+                except Exception as e:
+                    print(f"Error loading or plotting file: {e}")
+
 
     def load_traffic_log_button(self):
         self.load_traffic = QPushButton("Load traffic logs")
         self.load_traffic.setStyleSheet("background-color: #006699; color: #FFC600;")
         self.load_traffic.clicked.connect(self.load_traffic_file)
         self.layout.addWidget(self.load_traffic)
+
+    
     
 
     def time_stretcher_setup(self):
@@ -66,24 +88,6 @@ class ui_components(QMainWindow,initial_fields):
         plot_ref.setXRange(self.current_x_range[1]-(1/self.slider_val),self.current_x_range[1],padding=0)
         plot_ref2=self.spectrogram
         plot_ref2.setXRange(self.current_x_range[1]-(1/self.slider_val),self.current_x_range[1],padding=0)
-        #plot_ref3=self.setup_linked_traffic
-        #plot_ref3.setXRange(self.current_x_range[1]-(1/self.slider_val),self.current_x_range[1],padding=0)
-
-    def time_progress_slider_setup(self):
-        time_progress_box = QVBoxLayout()
-        self.time_progress = QSlider(QtCore.Qt.Horizontal)
-        self.time_progress.setMinimum(0)
-        self.time_progress.setMaximum(1)
-        self.time_progress.setValue(0)
-        self.time_progress.valueChanged.connect(self.time_progress_slider_update)
-        time_progress_box.addWidget(self.time_progress)
-        self.layout.addLayout(time_progress_box)
-
-    def time_progress_slider_update(self):
-        self.time_val = self.current_x_range[0]
-        #print("test",self.time_progress.value(),int(self.time_val),self.current_x_range)
-        plot_ref=self.ob_plot
-        plot_ref.setXRange(self.time_val,self.time_val+self.time_step,padding=0)
 
     def setup_threshold_incrementor(self):
         self.dB_incrementer = QVBoxLayout()
@@ -97,32 +101,12 @@ class ui_components(QMainWindow,initial_fields):
         self.threshold = self.dB_spin_box.value()
 
 
-    def load_file_all(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
-        self.index = 0
-        self.timer = QtCore.QTimer(self)
-        self.timer.setInterval(500)
-        if file_path:
-            if(file_path.endswith('.drc')):
-                self.traffic_from_file(file_path)
-                #self.linked_traffic_from_file(file_path)
-            else:
-                try:
-                    #with h5py.File(file_path, 'r') as f:
-                    f = h5py.File(file_path, 'r') 
-                    key = 'snapshots'
-                    self.max_index = int(len(f[key]["iq_data"]))
-                    self.timer.timeout.connect(lambda: self.timed_plotting(f))
-                    self.timer.start()
-                except Exception as e:
-                    print(f"Error loading or plotting file: {e}")
-
-    def timed_plotting(self,f):
-        if(self.index < self.max_index):
-            self.plot_all_data_from_file(f,self.index)
-            self.index+=1
-        else:
-            self.timer.stop()
+    #def timed_plotting(self,f):
+    #    if(self.index < self.max_index):
+    #        self.plot_all_data_from_file(f,self.index)
+    #        self.index+=1
+    #    else:
+    #        self.timer.stop()
 
     def load_traffic_file(self):
         file_path= QFileDialog.getExistingDirectory(None, "Select Folder", "")
@@ -138,5 +122,60 @@ class ui_components(QMainWindow,initial_fields):
         f,time_bins,Sxx_db = math_methods.calculate_spectrogram(decompressIQData(data),fs)
         self.plot_all_spectrogram(f,time_bins,Sxx_db,timestamps)
         self.append_data_binary_occupany(f,time_bins,Sxx_db,timestamps)
+
+class file_slot(spectrogram,RF_view):
+    def __init__(self):
+        super().__init__()
+        self.spectrogram_ref = None
+        self.RF_ref = None
+        self.index = 0
+
+    def slot_setup(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+        tab.setLayout(layout)
+        
+        graph_tabs = QTabWidget()
+        layout.addWidget(graph_tabs)
+
+
+        plot_tabs = QWidget()
+        self.spectrogram_ref= spectrogram()
+        spectrogram_tab= self.spectrogram_ref.spectrogram_tab_setup()
+        spectrogram_layout = QVBoxLayout()
+        spectrogram_layout.addWidget(spectrogram_tab)
+        plot_tabs.setLayout(spectrogram_layout)
+        graph_tabs.addTab(plot_tabs, "Spectrogram")
+
+        plot_tabs2 = QWidget()
+        self.RF_ref= RF_view()
+        RF_tab= self.RF_ref.RF_view_tab_setup()
+        RF_layout = QVBoxLayout()
+        RF_layout.addWidget(RF_tab)
+        plot_tabs2.setLayout(RF_layout)
+        graph_tabs.addTab(plot_tabs2, "RF_view")
+
+
+        return tab
+
+    def timed_plotting(self,f,max_index,timer):
+        if(self.index < max_index):
+            self.plot_all_data_from_file(f,max_index)
+            self.index+=1
+        else:
+            timer.stop()
+
+    def plot_all_data_from_file(self,file,max_index):
+        timestamps = file['snapshots']['timestamp']
+        data = file['snapshots']["iq_data"][self.index]
+        fs = file['snapshots']["fs"][self.index]
+        f,time_bins,Sxx_db = math_methods.calculate_spectrogram(decompressIQData(data),fs)
+        self.spectrogram_ref.max_index = max_index
+        self.spectrogram_ref.index = self.index
+        self.spectrogram_ref.plot_all_spectrogram(f,time_bins,Sxx_db,timestamps)
+        self.RF_ref.max_index = max_index
+        self.RF_ref.index = self.index
+        self.RF_ref.append_data_binary_occupany(f,time_bins,Sxx_db,timestamps)
+
 
     

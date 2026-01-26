@@ -6,6 +6,9 @@ from initial import initial_fields
 class spectrogram(initial_fields):
     def __init__(self):
         super().__init__()
+        self.spectrogram_widget = None
+        self.index= None
+        self.max_index= None
 
     def spectrogram_tab(self):
         tab = QWidget()
@@ -14,20 +17,30 @@ class spectrogram(initial_fields):
         layout.addWidget(self.setup_spectrogram)
         tab.setLayout(layout)
         self.tabs.addTab(tab, "Spectrogram")
-        self.spectrogram = self.setup_spectrogram.addPlot(title="Spectrogram")
-        self.spectrogram.setLabel("left", "Frequency (kHz)")
-        self.spectrogram.setLabel("bottom", "Time (s)")
-        self.images = []
+        self.spectrogram_widget = self.setup_spectrogram.addPlot(title="Spectrogram")
+        self.spectrogram_widget.setLabel("left", "Frequency (kHz)")
+        self.spectrogram_widget.setLabel("bottom", "Time (s)")
+
+    def spectrogram_tab_setup(self):
+        tab = QWidget()
+        self.setup_spectrogram = pg.GraphicsLayoutWidget(title="Spectrogram")
+        layout = QVBoxLayout()
+        layout.addWidget(self.setup_spectrogram)
+        tab.setLayout(layout)
+        self.spectrogram_widget = self.setup_spectrogram.addPlot(title="Spectrogram")
+        self.spectrogram_widget.setLabel("left", "Frequency (kHz)")
+        self.spectrogram_widget.setLabel("bottom", "Time (s)")
+        return tab
 
     def plot_all_spectrogram(self,f,time_bins,Sxx_db,timestamps):
         
-        plot = self.spectrogram
+        plot = self.spectrogram_widget
 
         if(self.index == 0):
             self.setup_spectrogram.clear()
             viewbox_call=plot.getViewBox()
             viewbox_call.setLimits(xMin=0,xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
-            viewbox_call.sigRangeChanged.connect(self.update_view_range)
+            #viewbox_call.sigRangeChanged.connect(self.update_view_range)
             plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
 
         img = pg.ImageItem()
@@ -52,7 +65,7 @@ class spectrogram(initial_fields):
 
         if(self.index == self.max_index-1):
             colorbar = pg.ColorBarItem(
-                values=(0, Sxx_db.max()), 
+                values=(Sxx_db.min(), Sxx_db.max()), 
                 colorMap= cmap,
                 label="Power (dB)"
             )
