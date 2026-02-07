@@ -27,12 +27,12 @@ class spectrogram(initial_fields):
         layout = QVBoxLayout()
         layout.addWidget(self.setup_spectrogram)
         tab.setLayout(layout)
-        self.spectrogram_widget = self.setup_spectrogram.addPlot(title="Spectrogram")
+        self.spectrogram_widget = self.setup_spectrogram.addPlot()
         self.spectrogram_widget.setLabel("left", "Frequency (kHz)")
         self.spectrogram_widget.setLabel("bottom", "Time (s)")
         return tab
 
-    def plot_all_spectrogram(self,f,time_bins,Sxx_db,timestamps):
+    def append_spectrogram(self,f,time_bins,Sxx_db,timestamps):
         
         plot = self.spectrogram_widget
 

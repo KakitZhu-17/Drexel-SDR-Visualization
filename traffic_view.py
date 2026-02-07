@@ -12,44 +12,78 @@ from PyQt5 import QtCore
 class Traffic_view(initial_fields):
     def __init__(self):
         super().__init__()
+        self.throughput_widget = None
+        self.ibw_widget = None
+        self.linked_spectrogram = None
+        self.linked_spectrogram_plot = None
 
     def traffic_tab(self):
         tab = QWidget()
-        self.setup_traffic = pg.PlotWidget()
+        self.throughput_widget = pg.PlotWidget()
         layout = QVBoxLayout()
-        layout.addWidget(self.setup_traffic)
+        layout.addWidget(self.throughput_widget)
         tab.setLayout(layout)
         self.tabs.addTab(tab, "Traffic View")
-        self.setup_traffic.setLabel("left", "bytes")
-        self.setup_traffic.setLabel("bottom", "Time (s)")
+        self.throughput_widget.setLabel("left", "bytes")
+        self.throughput_widget.setLabel("bottom", "Time (s)")
+
+    def traffic_tab_setup(self):
+        tab = QWidget()
+        self.throughput_widget = pg.PlotWidget()
+        self.ibw_widget = pg.PlotWidget()
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.throughput_widget)
+        self.layout.addWidget(self.ibw_widget)
+        tab.setLayout(self.layout)
+        self.throughput_widget.setLabel("left", "bytes")
+        self.throughput_widget.setLabel("bottom", "Time (s)")
+
+        self.ibw_widget.setLabel("left", "mbps")
+        self.ibw_widget.setLabel("bottom", "Time (s)")
+        return tab
+
+    def add_widget(self,tab_ref,plot_ref):
+        self.linked_spectrogram = tab_ref
+        self.linked_spectrogram_plot = plot_ref
+        self.layout.addWidget(self.linked_spectrogram)
+
+
+    def update_traffic_view_range(self,start,end):
+        self.throughput_widget.setXRange(start, end,padding=0)
+        self.ibw_widget.setXRange(start, end,padding=0)
+        self.linked_spectrogram_plot.spectrogram_widget.setXRange(start, end,padding=0)
+
 
     def traffic_from_file(self,file_path):
         
-        self.setup_traffic.clear()
+        self.throughput_widget.clear()
+        self.ibw_widget.clear()
         try:
             send_arr = mgen.parseSend(file_path)
             
             send_df = pd.DataFrame(send_arr).astype({ 'timestamp': 'datetime64[ns, UTC]'}, copy=False)
             traffic_arr = send_df.to_numpy()
             
-            plot = self.setup_traffic
+            throughput_plot = self.throughput_widget
             datetime = send_df['timestamp']
             
             send_dt_array_ns_UTC = np.array(datetime, dtype='datetime64[ns]')
            
             send_elapsed_time_timedelta = send_dt_array_ns_UTC - send_dt_array_ns_UTC[0]
             send_time_seconds= send_elapsed_time_timedelta / np.timedelta64(1, 's')
-            plot.plot(x=send_time_seconds.astype(float),y=traffic_arr[:,1].astype(int),pen=pg.mkPen('c', width=2))
+            throughput_plot.plot(x=send_time_seconds.astype(float),y=traffic_arr[:,1].astype(int),pen=pg.mkPen('c', width=2))
             bargraph = pg.BarGraphItem(x=send_time_seconds.astype(float), height=traffic_arr[:,-1].astype(int), width=0.001,brush="blue",pen=None)
-            plot.addItem(bargraph)
+            throughput_plot.addItem(bargraph)
             bargraph.setOpacity(0.3)
-            plot.setXRange(self.current_x_range[0], self.current_x_range[0]+self.time_step,padding=0)
         except Exception as e:
             print("test error:",e)
 
     def traffic_logs_from_file(self,file_path):
-        plot = self.setup_traffic
-        plot.clear()
+        throughput_plot = self.throughput_widget
+        throughput_plot.clear()
+
+        ibw_plot = self.ibw_widget
+        ibw_plot.clear()
         try:
             files = [f for f in os.listdir(file_path) if os.path.isfile(os.path.join(file_path, f))]
             send_arr = mgen.parseSend(file_path+"/"+files[0])
@@ -76,16 +110,15 @@ class Traffic_view(initial_fields):
             latency_td = latency_dt/np.timedelta64(1, 's')
             latency=latency_td.dropna().to_numpy()
 
-            #plot.plot(x=send_time_seconds.astype(float),y=send_traffic_arr[:,1].astype(int),pen=(255, 0, 0, 150)) #flow line for send
-            #plot.plot(x=recv_time_seconds.astype(float),y=recv_traffic_arr[:,1].astype(int),pen=(0, 0, 255, 150)) #flow line for recv/listen
+            #throughput_plot.throughput_plot(x=send_time_seconds.astype(float),y=send_traffic_arr[:,1].astype(int),pen=(255, 0, 0, 150)) #flow line for send
+            #throughput_plot.throughput_plot(x=recv_time_seconds.astype(float),y=recv_traffic_arr[:,1].astype(int),pen=(0, 0, 255, 150)) #flow line for recv/listen
             
-            plot.plot(x=array_in_seconds,y=windowed_recv_size,pen=(255, 255, 255, 150)) #instantious bandwidth
+            ibw_plot.plot(x=array_in_seconds/5,y=windowed_recv_size/1e6,pen=(255, 255, 255, 150)) #instantious bandwidth
 
-            plot.plot(x=send_time_seconds.astype(float),y=send_traffic_arr[:,-1].astype(int),pen=pg.mkPen(color=(0, 100, 220), width=1, style=QtCore.Qt.DashLine),fillLevel=0,brush=pg.mkBrush(color=(0, 100, 200,30))) #size in time for send
-            plot.plot(x=recv_time_seconds.astype(float),y=recv_traffic_arr[:,-1].astype(int),pen=pg.mkPen(color=(220, 220, 0)),fillLevel=0,brush=pg.mkBrush(color=(200,200,0,10))) #size in time for recv
+            throughput_plot.plot(x=send_time_seconds.astype(float),y=send_traffic_arr[:,-1].astype(int),pen=pg.mkPen(color=(0, 100, 220), width=1, style=QtCore.Qt.DashLine),fillLevel=0,brush=pg.mkBrush(color=(0, 100, 200,30))) #size in time for send
+            throughput_plot.plot(x=recv_time_seconds.astype(float),y=recv_traffic_arr[:,-1].astype(int),pen=pg.mkPen(color=(220, 220, 0)),fillLevel=0,brush=pg.mkBrush(color=(200,200,0,10))) #size in time for recv
         
-            plot.plot(x=recv_time_seconds.astype(float),y=latency.astype(float),pen=(255, 255, 255, 200)) #latency in time line
-            plot.setXRange(self.current_x_range[0], self.current_x_range[0]+self.time_step,padding=0)
+            throughput_plot.plot(x=recv_time_seconds.astype(float),y=latency.astype(float),pen=(255, 0, 0, 200)) #latency in time line
         except Exception as e:
             print("test error:",e)
    

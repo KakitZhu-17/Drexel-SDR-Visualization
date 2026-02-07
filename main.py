@@ -22,13 +22,19 @@ class MainWindow(ui_components,spectrogram,RF_view,Traffic_view):
 
         self.tab_container()
 
-        fileslot = file_slot()
-        setup_file_slot = fileslot.slot_setup()
-        self.tabs.addTab(setup_file_slot ,"radio1")
-        self.slot_arr.append(fileslot)
+        #fileslot = file_slot()
+        #setup_file_slot = fileslot.slot_setup()
+        #self.tabs.addTab(setup_file_slot ,"radio1")
+        #self.slot_arr.append(fileslot)
+
+        
+        #fileslot2 = file_slot()
+        #setup_file_slot2 = fileslot2.slot_setup()
+        #self.tabs.addTab(setup_file_slot2 ,"radio2")
+        #self.slot_arr.append(fileslot2)
         
 
-        #self.time_progress_slider_setup()
+        self.time_progress_slider_setup()
         self.time_stretcher_setup()
         #self.index_controls()
 
