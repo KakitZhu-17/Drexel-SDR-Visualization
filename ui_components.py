@@ -52,7 +52,7 @@ class ui_components(QMainWindow,initial_fields):
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
         self.index = 0
         self.timer = QtCore.QTimer(self)
-        self.timer.setInterval(100)
+        self.timer.setInterval(25)
         if file_path:
             if(file_path.endswith('.drc')):
                 #self.traffic_from_file(file_path)
@@ -66,6 +66,9 @@ class ui_components(QMainWindow,initial_fields):
                     self.add_slot(str(len(self.slot_arr)+1))
                     current_slot_index=len(self.slot_arr)-1
                     key = 'snapshots'
+                    #print(f.keys())
+                    #print(f["slots"].dtype)
+                    #print(f["slots"])
                     max_index = int(len(f[key]["iq_data"]))
                     current_max = int(f[key]['timestamp'][-1]+1.55) 
                     if(current_max > self.max_time):
