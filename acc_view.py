@@ -13,9 +13,6 @@ class all_view(initial_fields):
         self.RF_widget = None
         self.index= None
         self.max_index= None
-        self.current_file_index = 0
-        self.file_image_index=0
-        self.all_images = []
         self.check_boxes_arr=[]
         self.colors = [[255, 255, 0, 255],[0, 0, 255, 255],[0, 255, 0, 255],[0, 255, 255, 255],[255, 0, 255, 255]]
         self.max_db = None
@@ -32,7 +29,6 @@ class all_view(initial_fields):
     
         self.layout.addWidget(self.check_box_container)
         self.check_box_layout = QVBoxLayout()
-        #self.check_box_layout.addStretch(1)
         self.check_box_container.setLayout(self.check_box_layout)
 
         self.layout.addWidget(self.binary_occupany_layout)
@@ -47,26 +43,6 @@ class all_view(initial_fields):
 
         return tab
 
-    def opacity_bar_setup(self):
-        opacity_slider_box = QVBoxLayout()
-        self.opacity_slider = QSlider(Qt.Vertical)
-       
-        self.opacity_slider.setRange(0, 100)
-        self.opacity_slider.setValue(100)
-        self.opacity_slider.setTickPosition(QSlider.TicksBothSides)
-        self.opacity_slider.setTickInterval(1)
-        label = QLabel("Alpha")
-        
-        self.opacity_slider.valueChanged.connect(self.opacity_update)
-        opacity_slider_box.addWidget(self.opacity_slider)
-        opacity_slider_box.addWidget(label)
-        self.layout.addLayout(opacity_slider_box)
-
-    def opacity_update(self):
-        for plot_obj in self.check_boxes_arr:
-            for images in plot_obj.plot_images:
-                images.setOpacity(self.opacity_slider.value()/100)
-
     def calculate_opacity(self):
         diff = abs(self.min_db) - abs(self.max_db)
         for plot_obj in self.check_boxes_arr:
@@ -78,7 +54,6 @@ class all_view(initial_fields):
     def layer_append(self,f,time_bins,Sxx_db,timestamps,color_index):
 
         plot = self.RF_widget 
-        threshold = -110
 
         if(self.index == 0):
             new_plot_obj = plot_images(color_index,self.check_box_layout)
@@ -96,8 +71,6 @@ class all_view(initial_fields):
             viewbox_call.setLimits(xMin=timestamps[0],xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
             plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
 
-        #occupancy = (Sxx_db > threshold ).astype(float)
-
         colors = np.array([
             [0, 0, 0, 0],  
             self.colors[color_index]  
@@ -108,12 +81,8 @@ class all_view(initial_fields):
 
         img = pg.ImageItem()
         img.setLookupTable(lut)
-        #img.setImage(occupancy.T)
         img.setImage(Sxx_db.T)
         img.setZValue(np.nanmax(Sxx_db.T))
-
-
-        start_time = 0   
 
         freq_step = (f[-1] - f[0])
 
@@ -123,7 +92,6 @@ class all_view(initial_fields):
             time_bins[-1],                                
             freq_step/ 1e3
         ))
-
 
         self.check_boxes_arr[color_index].plot_images.append(img)
 
@@ -174,12 +142,7 @@ class all_view(initial_fields):
                 plot_obj.colorbar.setLevels(cb.levels())
 
 
-    def plot_all_data_from_file(self,file,index,max_index,color_index):
-        timestamps = file['snapshots']['timestamp']
-        data = file['snapshots']["iq_data"][index]
-        fs = file['snapshots']["fs"][index]
-        f,time_bins,Sxx_db = math_methods.calculate_spectrogram(decompressIQData(data),fs)
-        #print(timestamps[0]+time_bins[-1])
+    def plot_all_data_from_file(self,f,time_bins,Sxx_db,timestamps,index,max_index,color_index):
         self.index = index
         self.max_index = max_index
         if(index < max_index):

@@ -10,6 +10,7 @@ from spectrogram import spectrogram
 from RF_view import RF_view
 from traffic_view import Traffic_view
 from acc_view import all_view
+import tracemalloc
 
 class ui_components(QMainWindow,initial_fields):
     def __init__(self):
@@ -52,10 +53,9 @@ class ui_components(QMainWindow,initial_fields):
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
         self.index = 0
         self.timer = QtCore.QTimer(self)
-        self.timer.setInterval(25)
+        self.timer.setInterval(50)
         if file_path:
             if(file_path.endswith('.drc')):
-                #self.traffic_from_file(file_path)
                 if(len(self.slot_arr)>0):
                     for slot in self.slot_arr:
                         slot.traffic_ref.traffic_from_file(file_path)
@@ -70,32 +70,40 @@ class ui_components(QMainWindow,initial_fields):
                     #print(f["slots"].dtype)
                     #print(f["slots"])
                     max_index = int(len(f[key]["iq_data"]))
-                    current_max = int(f[key]['timestamp'][-1]+1.55) 
+                    current_max = int(f[key]['timestamp'][-1]+1.55)
+
+                    fs = f['snapshots']["fs"][0]
+                    data = f[key]["iq_data"]
+                    timestamps = f['snapshots']['timestamp']
+
                     if(current_max > self.max_time):
                         self.time_progress.setMaximum(current_max)
 
                     if(self.traffic_log != None):
                         self.slot_arr[-1].traffic_ref.traffic_logs_from_file(self.traffic_log)
 
-
                     print(file_path)
-                    self.timer.timeout.connect(lambda: self.timed_plotting(self.slot_arr[current_slot_index],f,max_index,current_slot_index))
+                    self.timer.timeout.connect(lambda: self.timed_plotting(self.slot_arr[current_slot_index],data,fs,timestamps,max_index,current_slot_index))
                     self.timer.start()
                 except Exception as e:
                     print(f"Error loading or plotting file: {e}")
-
+        
     def add_slot(self,slot_name):
         fileslot = file_slot()
         setup_file_slot = fileslot.slot_setup()
         self.tabs.addTab(setup_file_slot, slot_name)
         self.slot_arr.append(fileslot)
 
-    def timed_plotting(self,slot_ref,f,max_index,current_slot_index):
+    def timed_plotting(self,slot_ref,data,fs,timestamps,max_index,current_slot_index):
         if(self.index < max_index):
-            slot_ref.plot_all_data_from_file(f,self.index,max_index,current_slot_index)
-            self.accumulated_tab.plot_all_data_from_file(f,self.index,max_index,current_slot_index)
+            f,time_bins,Sxx_db = math_methods.calculate_spectrogram(decompressIQData(data[self.index]),fs)
+            
+            slot_ref.plot_all_data_from_file(f,time_bins,Sxx_db,timestamps,self.index,max_index,current_slot_index)
+            self.accumulated_tab.plot_all_data_from_file(f,time_bins,Sxx_db,timestamps,self.index,max_index,current_slot_index)
+            
             self.index+=1
         else:
+            print("done")
             self.timer.stop()
 
     def load_traffic_log_button(self):
@@ -141,10 +149,8 @@ class ui_components(QMainWindow,initial_fields):
         self.layout.addLayout(time_progress_box)
 
     def time_progress_slider_update(self):
-        #self.accumulated_tab.RF_ref.RF_widget.setXRange(self.time_progress.value(),self.time_progress.value()+1.5,padding=0)
         self.accumulated_tab.RF_widget.setXRange(self.time_progress.value(),self.time_progress.value()+1.5,padding=0)
         for slot in self.slot_arr:
-            #slot.RF_ref.RF_widget.setXRange(self.time_progress.value(),self.time_progress.value()+1.5,padding=0)
             slot.spectrogram_ref.spectrogram_widget.setXRange(self.time_progress.value(),self.time_progress.value()+1.5,padding=0)
         self.time_stretcher_update()
 
@@ -185,14 +191,6 @@ class file_slot(spectrogram,RF_view):
         graph_tabs = QTabWidget()
         layout.addWidget(graph_tabs)
 
-        #ob_plot_tab = QWidget()
-        #self.RF_ref= RF_view()
-        #RF_tab= self.RF_ref.RF_view_tab_setup()
-        #RF_layout = QVBoxLayout()
-        #RF_layout.addWidget(RF_tab)
-        #ob_plot_tab.setLayout(RF_layout)
-        #graph_tabs.addTab(ob_plot_tab, "RF_view")
-
         if(all_tab == False):
             plot_tabs = QWidget()
             self.spectrogram_ref= spectrogram()
@@ -217,31 +215,17 @@ class file_slot(spectrogram,RF_view):
 
         return tab
 
-    def plot_all_data_from_file(self,file,index,max_index,color_index):
-        timestamps = file['snapshots']['timestamp']
-        data = file['snapshots']["iq_data"][index]
-        fs = file['snapshots']["fs"][index]
-        f,time_bins,Sxx_db = math_methods.calculate_spectrogram(decompressIQData(data),fs)
-        #print(timestamps[0]+time_bins[-1])
+    def plot_all_data_from_file(self,f,time_bins,Sxx_db,timestamps,index,max_index,color_index):
         
-        if(self.spectrogram_ref != None):
-            self.spectrogram_ref.max_index = max_index
-            self.spectrogram_ref.index = index
+        self.spectrogram_ref.max_index = max_index
+        self.spectrogram_ref.index = index
 
-            self.spectrogram_ref.append_spectrogram(f,time_bins,Sxx_db,timestamps)
+        self.spectrogram_ref.append_spectrogram(f,time_bins,Sxx_db,timestamps)
 
-            self.spectrogram_ref2.max_index = max_index
-            self.spectrogram_ref2.index = index
+        self.spectrogram_ref2.max_index = max_index
+        self.spectrogram_ref2.index = index
 
-            self.spectrogram_ref2.append_spectrogram(f,time_bins,Sxx_db,timestamps)
-
-            #self.RF_ref.max_index = max_index
-            #self.RF_ref.index = index
-            #self.RF_ref.append_data_binary_occupany_test(f,time_bins,Sxx_db,timestamps,self.colors[color_index])
-
-        #self.RF_ref.max_index = max_index
-        #self.RF_ref.index = index
-        #self.RF_ref.layer_append(f,time_bins,Sxx_db,timestamps,self.colors[color_index])
+        self.spectrogram_ref2.append_spectrogram(f,time_bins,Sxx_db,timestamps)
 
 
 

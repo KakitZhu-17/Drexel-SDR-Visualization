@@ -72,6 +72,8 @@ class spectrogram(initial_fields):
             colorbar.setImageItem(self.images)
             self.setup_spectrogram.addItem(colorbar)
         
+        #print(self.index, timestamps[self.index])
+        
 
 
    
