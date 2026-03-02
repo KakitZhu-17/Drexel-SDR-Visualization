@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QWidget, QVBoxLayout,QHBoxLayout,QCheckBox,QSlider,QLabel
+from PyQt5.QtWidgets import QWidget, QVBoxLayout,QHBoxLayout,QCheckBox,QSlider,QLabel,QProgressBar
 import pyqtgraph as pg
 from initial import initial_fields
 import numpy as np
@@ -29,10 +29,13 @@ class all_view(initial_fields):
     
         self.layout.addWidget(self.check_box_container)
         self.check_box_layout = QVBoxLayout()
+        self.check_box_layout.setSpacing(0)
+        self.check_box_layout.setContentsMargins(0, 0, 0, 0)
         self.check_box_container.setLayout(self.check_box_layout)
 
         self.layout.addWidget(self.binary_occupany_layout)
         tab.setLayout(self.layout)
+        self.check_box_layout.addStretch(0)
         #self.add_colorbar_check_box()
 
         self.RF_widget = self.binary_occupany_layout.addPlot(title="RF View")
@@ -51,12 +54,12 @@ class all_view(initial_fields):
                 #print("opacity val ",index_opacity)
                 images.setOpacity(index_opacity)
 
-    def layer_append(self,f,time_bins,Sxx_db,timestamps,color_index):
+    def layer_append(self,f,time_bins,Sxx_db,timestamps,color_index,node_id):
 
         plot = self.RF_widget 
 
         if(self.index == 0):
-            new_plot_obj = plot_images(color_index,self.check_box_layout)
+            new_plot_obj = plot_images(color_index,self.check_box_layout,node_id)
             new_plot_obj.add_check_box()
             self.check_boxes_arr.append(new_plot_obj)
 
@@ -142,11 +145,11 @@ class all_view(initial_fields):
                 plot_obj.colorbar.setLevels(cb.levels())
 
 
-    def plot_all_data_from_file(self,f,time_bins,Sxx_db,timestamps,index,max_index,color_index):
+    def plot_all_data_from_file(self,f,time_bins,Sxx_db,timestamps,index,max_index,color_index,node_id):
         self.index = index
         self.max_index = max_index
         if(index < max_index):
-            self.layer_append(f,time_bins,Sxx_db,timestamps,color_index)
+            self.layer_append(f,time_bins,Sxx_db,timestamps,color_index,node_id)
 
     def add_colorbar_check_box(self):
         check_box = QCheckBox("Colorbars")
@@ -164,23 +167,48 @@ class all_view(initial_fields):
             for plot_obj in self.check_boxes_arr:
                 if(plot_obj.colorbar != None):
                     plot_obj.colorbar.setVisible(False)
+    
+    def update_progressbar_value(self,index,value):
+        self.check_boxes_arr[index].progressbar.setValue(value)
+        #print(self.check_boxes_arr[index].progressbar.value())
+        display_value= self.check_boxes_arr[index].progressbar.value()
+        self.check_boxes_arr[index].progressbar.setFormat(f"{display_value/100}")
+
 
 class plot_images():
-    def __init__(self,num,widget_ref):
+    def __init__(self,num,widget_ref,node_id):
         self.slot_num = num
         self.plot_images = []
+        self.node_id = node_id
         self.colorbar = None
+
+        self.progressbar = QProgressBar()
+        self.progressbar.setFixedSize(25,20)
+        self.progressbar.setMinimum(0)
+        self.progressbar.setMaximum(100)
+        self.progressbar.setValue(0)
+        self.progressbar.setFormat("%v")
+        self.progressbar.setOrientation(Qt.Vertical)
+        self.progressbar.setStyleSheet("QProgressBar::chunk { background-color: grey; }")
+
         self.check_boxes_ref = None
         self.plot_ref = widget_ref
+        self.slot_box = QWidget()
+        self.slot_layout = QVBoxLayout()
 
     def add_check_box(self):
-        title = "File " + str(self.slot_num+1)
+        title = "Node-" + str(self.node_id)
         check_box = QCheckBox(title)
         check_box.setChecked(True)
         check_box.stateChanged.connect(self.toggle_update)
+        
         self.check_boxes_ref = check_box
-        self.plot_ref.addWidget(self.check_boxes_ref)
-        self.plot_ref.addStretch(self.slot_num)
+        self.slot_layout.addWidget(check_box)
+        self.slot_layout.addWidget(self.progressbar)
+        self.slot_box.setLayout(self.slot_layout)
+        self.slot_box.setFixedSize(100,50)
+
+        self.plot_ref.addWidget(self.slot_box)
 
 
     def toggle_update(self,state):

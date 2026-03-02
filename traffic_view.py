@@ -16,6 +16,8 @@ class Traffic_view(initial_fields):
         self.ibw_widget = None
         self.linked_spectrogram = None
         self.linked_spectrogram_plot = None
+        self.plot_size_data = None
+        self.plot_time_data = None
 
     def traffic_tab(self):
         tab = QWidget()
@@ -54,27 +56,23 @@ class Traffic_view(initial_fields):
         self.linked_spectrogram_plot.spectrogram_widget.setXRange(start, end,padding=0)
 
 
-    def traffic_from_file(self,file_path):
+    def traffic_from_h5_file(self,file):
         
         self.throughput_widget.clear()
         self.ibw_widget.clear()
+        ibw_plot = self.ibw_widget
         try:
-            send_arr = mgen.parseSend(file_path)
+            recv = file["recv"]
+            send = file["send"]
             
-            send_df = pd.DataFrame(send_arr).astype({ 'timestamp': 'datetime64[ns, UTC]'}, copy=False)
-            traffic_arr = send_df.to_numpy()
+            windowed_recv_time=recv["timestamp"]//0.2
+            windowed_recv_size=(np.bincount(windowed_recv_time.astype(int),weights=recv["size"].astype(int)) *8 )/0.2
             
-            throughput_plot = self.throughput_widget
-            datetime = send_df['timestamp']
-            
-            send_dt_array_ns_UTC = np.array(datetime, dtype='datetime64[ns]')
-           
-            send_elapsed_time_timedelta = send_dt_array_ns_UTC - send_dt_array_ns_UTC[0]
-            send_time_seconds= send_elapsed_time_timedelta / np.timedelta64(1, 's')
-            throughput_plot.plot(x=send_time_seconds.astype(float),y=traffic_arr[:,1].astype(int),pen=pg.mkPen('c', width=2))
-            bargraph = pg.BarGraphItem(x=send_time_seconds.astype(float), height=traffic_arr[:,-1].astype(int), width=0.001,brush="blue",pen=None)
-            throughput_plot.addItem(bargraph)
-            bargraph.setOpacity(0.3)
+            array_in_seconds = np.arange(len(windowed_recv_size))
+            self.plot_size_data = windowed_recv_size/1e6
+            self.plot_time_data = array_in_seconds/5
+            ibw_plot.plot(x=array_in_seconds/5,y=windowed_recv_size/1e6,pen=(255, 255, 255, 150)) #instantious bandwidth
+            #print(send["timestamp"].shape)
         except Exception as e:
             print("test error:",e)
 
@@ -103,6 +101,7 @@ class Traffic_view(initial_fields):
             recv_time_seconds= recv_elapsed_time_timedelta / np.timedelta64(1, 's')
 
             windowed_recv_time=recv_time_seconds//0.2
+            print(recv_traffic_arr[:,-1].astype(int))
             windowed_recv_size=(np.bincount(windowed_recv_time.astype(int),weights=recv_traffic_arr[:,-1].astype(int)) *8 )/0.2
             array_in_seconds = np.arange(len(windowed_recv_size))
 
@@ -112,7 +111,8 @@ class Traffic_view(initial_fields):
 
             #throughput_plot.throughput_plot(x=send_time_seconds.astype(float),y=send_traffic_arr[:,1].astype(int),pen=(255, 0, 0, 150)) #flow line for send
             #throughput_plot.throughput_plot(x=recv_time_seconds.astype(float),y=recv_traffic_arr[:,1].astype(int),pen=(0, 0, 255, 150)) #flow line for recv/listen
-            
+            self.plot_size_data = windowed_recv_size/1e6
+            self.plot_time_data = array_in_seconds/5
             ibw_plot.plot(x=array_in_seconds/5,y=windowed_recv_size/1e6,pen=(255, 255, 255, 150)) #instantious bandwidth
 
             throughput_plot.plot(x=send_time_seconds.astype(float),y=send_traffic_arr[:,-1].astype(int),pen=pg.mkPen(color=(0, 100, 220), width=1, style=QtCore.Qt.DashLine),fillLevel=0,brush=pg.mkBrush(color=(0, 100, 200,30))) #size in time for send

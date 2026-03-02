@@ -2,6 +2,7 @@ import sys
 from PyQt5.QtWidgets import QMainWindow,QTabWidget ,QSpinBox, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QSlider
 from PyQt5 import QtCore
 import pyqtgraph as pg
+import numpy as np
 import h5py
 import math_methods
 from initial import initial_fields
@@ -26,6 +27,8 @@ class ui_components(QMainWindow,initial_fields):
         self.slot_arr=[]
         self.file_arr=[]
         self.max_time=0
+        self.max_traffic_power = None
+        self.min_traffic_power = None
 
         self.traffic_log=None
 
@@ -63,15 +66,16 @@ class ui_components(QMainWindow,initial_fields):
                 try:
                     f = h5py.File(file_path, 'r') 
                     self.file_arr.append(f)
-                    self.add_slot(str(len(self.slot_arr)+1))
+                    self.node_id = f.attrs['node_id']
+                    self.add_slot()
                     current_slot_index=len(self.slot_arr)-1
                     key = 'snapshots'
                     #print(f.keys())
-                    #print(f["slots"].dtype)
-                    #print(f["slots"])
+                    #print(f["tx_records"].dtype)
+                    #print(f.attrs.keys())
+                    print(f.attrs['node_id'])
                     max_index = int(len(f[key]["iq_data"]))
                     current_max = int(f[key]['timestamp'][-1]+1.55)
-
                     fs = f['snapshots']["fs"][0]
                     data = f[key]["iq_data"]
                     timestamps = f['snapshots']['timestamp']
@@ -82,16 +86,19 @@ class ui_components(QMainWindow,initial_fields):
                     if(self.traffic_log != None):
                         self.slot_arr[-1].traffic_ref.traffic_logs_from_file(self.traffic_log)
 
+                    self.slot_arr[current_slot_index].traffic_ref.traffic_from_h5_file(f)
+
                     print(file_path)
                     self.timer.timeout.connect(lambda: self.timed_plotting(self.slot_arr[current_slot_index],data,fs,timestamps,max_index,current_slot_index))
                     self.timer.start()
                 except Exception as e:
                     print(f"Error loading or plotting file: {e}")
         
-    def add_slot(self,slot_name):
+    def add_slot(self):
         fileslot = file_slot()
+        tab_name = "Node-" + str(self.node_id)
         setup_file_slot = fileslot.slot_setup()
-        self.tabs.addTab(setup_file_slot, slot_name)
+        self.tabs.addTab(setup_file_slot, tab_name)
         self.slot_arr.append(fileslot)
 
     def timed_plotting(self,slot_ref,data,fs,timestamps,max_index,current_slot_index):
@@ -99,7 +106,7 @@ class ui_components(QMainWindow,initial_fields):
             f,time_bins,Sxx_db = math_methods.calculate_spectrogram(decompressIQData(data[self.index]),fs)
             
             slot_ref.plot_all_data_from_file(f,time_bins,Sxx_db,timestamps,self.index,max_index,current_slot_index)
-            self.accumulated_tab.plot_all_data_from_file(f,time_bins,Sxx_db,timestamps,self.index,max_index,current_slot_index)
+            self.accumulated_tab.plot_all_data_from_file(f,time_bins,Sxx_db,timestamps,self.index,max_index,current_slot_index,self.node_id)
             
             self.index+=1
         else:
@@ -150,8 +157,14 @@ class ui_components(QMainWindow,initial_fields):
 
     def time_progress_slider_update(self):
         self.accumulated_tab.RF_widget.setXRange(self.time_progress.value(),self.time_progress.value()+1.5,padding=0)
+        index = 0
         for slot in self.slot_arr:
             slot.spectrogram_ref.spectrogram_widget.setXRange(self.time_progress.value(),self.time_progress.value()+1.5,padding=0)
+            slot.traffic_ref.update_traffic_view_range(self.time_progress.value(),self.time_progress.value()+1.5)
+            current_idx = slot.traffic_ref.ibw_widget.viewRange()[0][0]
+            interpolated_data = np.interp(int(current_idx), slot.traffic_ref.plot_time_data, slot.traffic_ref.plot_size_data)
+            self.accumulated_tab.update_progressbar_value(index,interpolated_data*100)
+            index+=1
         self.time_stretcher_update()
 
     def setup_threshold_incrementor(self):
