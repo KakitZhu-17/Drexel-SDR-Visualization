@@ -7,94 +7,47 @@ import numpy as np
 class RF_view(initial_fields):
     def __init__(self):
         super().__init__()
+        self.RF_widget = None
+        self.index= None
+        self.max_index= None
 
     def RF_view_tab(self):
         #this is basically how you add a widget
         tab = QWidget()
-        self.binary_occupany_layout = pg.GraphicsLayoutWidget(title="Spectrogram")
+        self.binary_occupany_layout = pg.GraphicsLayoutWidget(title="RF View")
         layout = QVBoxLayout() #this is a vertical layout box, it puts widgets on top of each other
         layout.addWidget(self.binary_occupany_layout)
         tab.setLayout(layout)
         self.tabs.addTab(tab, "RF view")
-        self.ob_plot = self.binary_occupany_layout.addPlot(title="RF View")
-        self.ob_plot.setLabel("left", "Frequency (kHz)")
-        self.ob_plot.setLabel("bottom", "Time (s)")
+        self.RF_widget = self.binary_occupany_layout.addPlot(title="RF View")
+        self.RF_widget.setLabel("left", "Frequency (kHz)")
+        self.RF_widget.setLabel("bottom", "Time (s)")
 
-    def binary_occupancy_from_file(self,f,time_bins,Sxx_db,timestamps):
-        self.binary_occupany_layout.clear()
-        #self.ob_plot = self.binary_occupany_layout.addPlot(title="RF View")
+    def RF_view_tab_setup(self):
+        #this is basically how you add a widget
+        tab = QWidget()
+        self.binary_occupany_layout = pg.GraphicsLayoutWidget(title="RF View")
+        layout = QVBoxLayout() #this is a vertical layout box, it puts widgets on top of each other
+        layout.addWidget(self.binary_occupany_layout)
+        tab.setLayout(layout)
+        #self.tabs.addTab(tab, "RF view")
+        self.RF_widget = self.binary_occupany_layout.addPlot(title="RF View")
+        self.RF_widget.setLabel("left", "Frequency (kHz)")
+        self.RF_widget.setLabel("bottom", "Time (s)")
+        return tab
 
-        threshold = np.mean(Sxx_db)
-        self.dB_spin_box.setValue(int(threshold))
-        threshold = self.threshold
-        occupancy = (Sxx_db > threshold).astype(float)
-        
-        plot = self.ob_plot
-        img = pg.ImageItem()
-        plot.addItem(img)
-        img.setColorMap("magma")
-        img.setImage(occupancy.T)
-        freq_total = (f[-1] - f[0])
+    def append_data_binary_occupany(self,f,time_bins,Sxx_db,timestamps):
 
-        #print(timestamps[0],timestamps[0]+time_bins[-1])
-        
-        img.setRect(pg.QtCore.QRectF(
-            timestamps[0],
-            f[0]/1e3,
-            time_bins[-1],
-            freq_total/1e3
-        ))
-        
-        self.binary_occupany_layout.addItem(plot)
-        viewbox_call=plot.getViewBox()
-        viewbox_call.setLimits(xMin=timestamps[0],xMax=timestamps[0]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
-        viewbox_call.sigRangeChanged.connect(self.update_view_range)
-    
-    def append_data_binary_occupany(self,f,time_bins,Sxx_db):
-        plot = self.ob_plot
-
-        #freq_bin_factor = self.bin_factor
-        
-        #F = len(f)
-        #T = len(time_bins)
-
-        #F_trim = (F // freq_bin_factor) * freq_bin_factor
-        #f_trim = f[:F_trim]
-        #S_trim = Sxx_db[:F_trim, :T]
-
-        #f_coarse = f_trim.reshape(len(f_trim)//freq_bin_factor, freq_bin_factor).mean(axis=1)
-        #S_coarse = S_trim.reshape(len(f_coarse), freq_bin_factor, T).max(axis=1)
-
-        threshold = self.threshold
-        occupancy = (Sxx_db > threshold).astype(float)
-
-        img = pg.ImageItem()
-        img.setColorMap("magma")
-        img.setImage(occupancy.T)
-
-        start_time = self.global_time    
-
-        freq_step = (f[-1] - f[0])
-
-        img.setRect(pg.QtCore.QRectF(
-            start_time,
-            f[0]/1e3,
-            time_bins[-1],                                
-            freq_step/ 1e3
-        ))
-
-        plot.addItem(img)
-        viewbox_call=plot.getViewBox()
-        viewbox_call.setLimits(xMin=0,xMax=self.global_time+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
-        plot.setXRange(self.global_time, self.global_time+time_bins[-1],padding=0)
-
-    def append_all_data_binary_occupany(self,f,time_bins,Sxx_db,timestamps):
+        plot = self.RF_widget 
 
         if(self.index == 0):
-            self.ob_plot.clear()
+            self.RF_widget.clear()
+            viewbox_call=plot.getViewBox()
+            viewbox_call.setLimits(xMin=0,xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+            #viewbox_call.sigRangeChanged.connect(self.update_view_range)
+            plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
 
-        plot = self.ob_plot 
-        occupancy = (Sxx_db > np.mean(Sxx_db) ).astype(float)
+        occupancy = (Sxx_db > -110 ).astype(float)
 
         img = pg.ImageItem()
         img.setColorMap("magma")
@@ -113,12 +66,85 @@ class RF_view(initial_fields):
 
         plot.addItem(img)
 
-        if(self.index == self.max_index-1):
+    def append_data_binary_occupany_test(self,f,time_bins,Sxx_db,timestamps,color_vec):
+
+        plot = self.RF_widget 
+        threshold = -110
+
+        if(self.index == 0):
+            #self.RF_widget.clear()
             viewbox_call=plot.getViewBox()
-            viewbox_call.setLimits(xMin=0,xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+            viewbox_call.setLimits(xMin=timestamps[0],xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+            #viewbox_call.sigRangeChanged.connect(self.update_view_range)
             plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
-    
 
-    
+        occupancy = (Sxx_db > threshold ).astype(float)
 
+        colors = np.array([
+            [0, 0, 0, 0],   # Low color (Red)
+            color_vec    # High color (Blue)
+        ])
+        # Stops 0.0 and 1.0 map directly to the two colors
+        cmap = pg.ColorMap(pos=np.array([0.0, 1.0]), color=colors)
+        lut = cmap.getLookupTable(start=0.0, stop=1.0, nPts=256)
+
+        img = pg.ImageItem()
+        #img.setColorMap("magma")
+        img.setLookupTable(lut)
+        img.setImage(occupancy.T)
+
+
+        start_time = 0   
+
+        freq_step = (f[-1] - f[0])
+
+        img.setRect(pg.QtCore.QRectF(
+            timestamps[self.index],
+            f[0]/1e3,
+            time_bins[-1],                                
+            freq_step/ 1e3
+        ))
+
+        plot.addItem(img)
+
+    def layer_append(self,f,time_bins,Sxx_db,timestamps,color_vec):
+
+        plot = self.RF_widget 
+        threshold = -110
+
+        if(self.index == 0):
+            viewbox_call=plot.getViewBox()
+            viewbox_call.setLimits(xMin=timestamps[0],xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+            plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
+
+        occupancy = (Sxx_db > threshold ).astype(float)
+
+        colors = np.array([
+            [0, 0, 0, 0],  
+            color_vec  
+        ])
+        # Stops 0.0 and 1.0 map directly to the two colors
+        cmap = pg.ColorMap(pos=np.array([0.0, 1.0]), color=colors)
+        lut = cmap.getLookupTable(start=0.0, stop=1.0, nPts=256)
+
+        img = pg.ImageItem()
+        #img.setColorMap("magma")
+        img.setLookupTable(lut)
+        #img.setImage(occupancy.T)
+        img.setImage(Sxx_db.T)
+        img.setZValue(np.nanmax(Sxx_db.T))
+
+
+        start_time = 0   
+
+        freq_step = (f[-1] - f[0])
+
+        img.setRect(pg.QtCore.QRectF(
+            timestamps[self.index],
+            f[0]/1e3,
+            time_bins[-1],                                
+            freq_step/ 1e3
+        ))
+
+        plot.addItem(img)
    

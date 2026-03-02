@@ -1,14 +1,14 @@
 import sys
 from PyQt5.QtWidgets import QApplication,QHBoxLayout
 from PyQt5.QtCore import Qt
-from ui_components import ui_components
+from ui_components import ui_components, file_slot
 from spectrogram import spectrogram
 from RF_view import RF_view
 from traffic_view import Traffic_view
-from linked_view import linked_view 
+#from linked_view import linked_view 
 
 
-class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
+class MainWindow(ui_components,spectrogram,RF_view,Traffic_view):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SDRagon Vision")
@@ -22,22 +22,19 @@ class MainWindow(ui_components,spectrogram,RF_view,Traffic_view,linked_view):
 
         self.tab_container()
 
-        #the actual plots
-        self.RF_view_tab()
-        self.spectrogram_tab()
-        self.traffic_tab()
-        #self.linked_tab()
+        #fileslot = file_slot()
+        #setup_file_slot = fileslot.slot_setup()
+        #self.tabs.addTab(setup_file_slot ,"radio1")
+        #self.slot_arr.append(fileslot)
 
-        #threhold adjuster
-        self.setup_threshold_incrementor()
+        
+        #fileslot2 = file_slot()
+        #setup_file_slot2 = fileslot2.slot_setup()
+        #self.tabs.addTab(setup_file_slot2 ,"radio2")
+        #self.slot_arr.append(fileslot2)
+        
 
-        self.threshold_box = QHBoxLayout()
-        self.threshold_box.addLayout(self.dB_incrementer)
-
-        self.threshold_box.addWidget(self.tabs)
-        self.layout.addLayout(self.threshold_box)
-
-        #self.time_progress_slider_setup()
+        self.time_progress_slider_setup()
         self.time_stretcher_setup()
         #self.index_controls()
 
