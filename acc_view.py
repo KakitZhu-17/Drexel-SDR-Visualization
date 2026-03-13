@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QWidget, QVBoxLayout,QHBoxLayout,QCheckBox,QSlider,QLabel,QProgressBar
+from PyQt5.QtWidgets import QWidget, QVBoxLayout,QHBoxLayout,QCheckBox,QSlider,QLabel,QProgressBar,QFrame
 import pyqtgraph as pg
 from initial import initial_fields
 import numpy as np
@@ -14,37 +14,48 @@ class all_view(initial_fields):
         self.index= None
         self.max_index= None
         self.check_boxes_arr=[]
-        self.colors = [[255, 255, 0, 255],[0, 0, 255, 255],[0, 255, 0, 255],[0, 255, 255, 255],[255, 0, 255, 255]]
+        self.colors = [[255, 255, 0, 255],[0, 0, 255, 255],[0, 255, 0, 255],[0, 255, 255, 255],[255, 0, 255, 255],[255, 255, 255, 255]]
         self.max_db = None
         self.min_db = None
+        self.global_max_time = 0
 
     def all_view_tab_setup(self):
         #this is basically how you add a widget
         tab = QWidget()
         
         self.binary_occupany_layout = pg.GraphicsLayoutWidget(title="RF View")
-        self.layout = QHBoxLayout() #this is a vertical layout box, it puts widgets on top of each other
+        self.layout = QVBoxLayout() #this is a vertical layout box, it puts widgets on top of each other
         
         self.check_box_container = QWidget()
     
         self.layout.addWidget(self.check_box_container)
-        self.check_box_layout = QVBoxLayout()
+        self.check_box_layout = QHBoxLayout()
         self.check_box_layout.setSpacing(0)
         self.check_box_layout.setContentsMargins(0, 0, 0, 0)
         self.check_box_container.setLayout(self.check_box_layout)
+        self.check_box_container.setFixedSize(1000,70)
 
         self.layout.addWidget(self.binary_occupany_layout)
         tab.setLayout(self.layout)
-        self.check_box_layout.addStretch(0)
         #self.add_colorbar_check_box()
 
-        self.RF_widget = self.binary_occupany_layout.addPlot(title="RF View")
+        self.RF_widget = self.binary_occupany_layout.addPlot(title="All View")
         self.RF_widget.setLabel("left", "Frequency (kHz)")
         self.RF_widget.setLabel("bottom", "Time (s)")
+    
+        self.time_line = pg.InfiniteLine(
+            pos=(self.RF_widget.viewRange()[0][0] + self.RF_widget.viewRange()[0][1])/2, 
+            angle=90, 
+            movable=True, 
+            pen=pg.mkPen('w', width=3)
+        )
+        #self.time_line.sigPositionChanged.connect(self.time_line_update)
+        self.RF_widget.addItem(self.time_line)
 
         self.global_colorbar()
 
         return tab
+
 
     def calculate_opacity(self):
         diff = abs(self.min_db) - abs(self.max_db)
@@ -71,8 +82,12 @@ class all_view(initial_fields):
             self.global_colorbar.setLevels(low=self.min_db,high=self.max_db)
 
             viewbox_call=plot.getViewBox()
-            viewbox_call.setLimits(xMin=timestamps[0],xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+            if(timestamps[-1]+time_bins[-1] > self.global_max_time):
+                viewbox_call.setLimits(xMin=0,xMax=timestamps[-1]+time_bins[-1] ,yMin=f.min()/1e3, yMax=f.max()/1e3)
+                self.global_max_time = timestamps[-1]+time_bins[-1]
+            
             plot.setXRange(timestamps[0], timestamps[0]+time_bins[-1],padding=0)
+            self.time_line.setValue((self.RF_widget.viewRange()[0][0] + self.RF_widget.viewRange()[0][1])/2)
 
         colors = np.array([
             [0, 0, 0, 0],  
@@ -122,7 +137,6 @@ class all_view(initial_fields):
         
             self.binary_occupany_layout.addItem(colorbar)
             self.check_boxes_arr[color_index].colorbar = colorbar
-
             self.update_all_colorbar_range(self.global_colorbar)
         
         
@@ -181,32 +195,36 @@ class plot_images():
         self.plot_images = []
         self.node_id = node_id
         self.colorbar = None
+        self.css_colors = ["yellow","blue","green","cyan","magenta","white"]
 
         self.progressbar = QProgressBar()
         self.progressbar.setFixedSize(25,20)
         self.progressbar.setMinimum(0)
-        self.progressbar.setMaximum(100)
+        self.progressbar.setMaximum(200)
         self.progressbar.setValue(0)
         self.progressbar.setFormat("%v")
         self.progressbar.setOrientation(Qt.Vertical)
-        self.progressbar.setStyleSheet("QProgressBar::chunk { background-color: grey; }")
+        self.progressbar.setStyleSheet(f"""QProgressBar::chunk {{background-color: {self.css_colors[self.slot_num]};}}""")
 
         self.check_boxes_ref = None
         self.plot_ref = widget_ref
-        self.slot_box = QWidget()
+        self.slot_box = QFrame()
+        self.slot_box.setFrameStyle(QFrame.WinPanel | QFrame.Raised)
+        self.slot_box.setLineWidth(1) 
         self.slot_layout = QVBoxLayout()
 
     def add_check_box(self):
         title = "Node-" + str(self.node_id)
         check_box = QCheckBox(title)
         check_box.setChecked(True)
+        check_box.setStyleSheet(f"""QCheckBox::indicator:checked {{background-color: {self.css_colors[self.slot_num]};}}""")
         check_box.stateChanged.connect(self.toggle_update)
         
         self.check_boxes_ref = check_box
         self.slot_layout.addWidget(check_box)
         self.slot_layout.addWidget(self.progressbar)
         self.slot_box.setLayout(self.slot_layout)
-        self.slot_box.setFixedSize(100,50)
+        self.slot_box.setFixedSize(90,70)
 
         self.plot_ref.addWidget(self.slot_box)
 

@@ -12,18 +12,19 @@ from PyQt5 import QtCore
 class Traffic_view(initial_fields):
     def __init__(self):
         super().__init__()
-        self.throughput_widget = None
-        self.ibw_widget = None
+        self.throughput_widget = pg.PlotWidget()
+        self.ibw_widget = pg.PlotWidget()
         self.linked_spectrogram = None
         self.linked_spectrogram_plot = None
         self.plot_size_data = None
         self.plot_time_data = None
+        #self.ibw_widget = pg.PlotWidget()
 
     def traffic_tab(self):
         tab = QWidget()
         self.throughput_widget = pg.PlotWidget()
         layout = QVBoxLayout()
-        layout.addWidget(self.throughput_widget)
+        #layout.addWidget(self.throughput_widget)
         tab.setLayout(layout)
         self.tabs.addTab(tab, "Traffic View")
         self.throughput_widget.setLabel("left", "bytes")
@@ -31,10 +32,9 @@ class Traffic_view(initial_fields):
 
     def traffic_tab_setup(self):
         tab = QWidget()
-        self.throughput_widget = pg.PlotWidget()
-        self.ibw_widget = pg.PlotWidget()
+        #self.throughput_widget = pg.PlotWidget()
         self.layout = QVBoxLayout()
-        self.layout.addWidget(self.throughput_widget)
+        #self.layout.addWidget(self.throughput_widget)
         self.layout.addWidget(self.ibw_widget)
         tab.setLayout(self.layout)
         self.throughput_widget.setLabel("left", "bytes")
@@ -55,11 +55,23 @@ class Traffic_view(initial_fields):
         self.ibw_widget.setXRange(start, end,padding=0)
         self.linked_spectrogram_plot.spectrogram_widget.setXRange(start, end,padding=0)
 
+    def update_time_line(self,pos):
+        self.time_line.setPos(pos)
+
 
     def traffic_from_h5_file(self,file):
         
         self.throughput_widget.clear()
         self.ibw_widget.clear()
+
+        self.time_line = pg.InfiniteLine(
+            pos=(self.ibw_widget.viewRange()[0][0]+self.ibw_widget.viewRange()[0][1])/2, 
+            angle=90, 
+            pen=pg.mkPen('w', width=3)
+        )
+        #self.time_line.sigPositionChanged.connect(self.time_line_update)
+        self.ibw_widget.addItem(self.time_line)
+
         ibw_plot = self.ibw_widget
         try:
             recv = file["recv"]
@@ -79,6 +91,14 @@ class Traffic_view(initial_fields):
     def traffic_logs_from_file(self,file_path):
         throughput_plot = self.throughput_widget
         throughput_plot.clear()
+
+        self.time_line = pg.InfiniteLine(
+            pos=(self.ibw_widget.viewRange()[0][0]+self.ibw_widget.viewRange()[0][1])/2, 
+            angle=90,
+            pen=pg.mkPen('w', width=3)
+        )
+        #self.time_line.sigPositionChanged.connect(self.time_line_update)
+        self.ibw_widget.addItem(self.time_line)
 
         ibw_plot = self.ibw_widget
         ibw_plot.clear()
