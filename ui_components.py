@@ -40,6 +40,8 @@ class ui_components(QMainWindow,initial_fields):
 
         self.left_key = QShortcut(QKeySequence("A"), self)
         self.left_key.activated.connect(self.left_scroll)
+        print("'D' to scroll Right")
+        print("'A' to scroll Left")
 
 
     def set_central_widget(self):
@@ -85,6 +87,11 @@ class ui_components(QMainWindow,initial_fields):
 
 
     def load_file(self):
+        self.load_button.setEnabled(False)
+        self.load_traffic.setEnabled(False)
+        self.load_button.setText("loading file please wait")
+        self.load_traffic.setText("loading file please wait")
+
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
         self.index = 0
         self.timer = QtCore.QTimer(self)
@@ -105,7 +112,7 @@ class ui_components(QMainWindow,initial_fields):
                     #print(f.keys())
                     #print(f["tx_records"].dtype)
                     #print(f.attrs.keys())
-                    print(f.attrs['node_id'])
+                    #print(f.attrs['node_id'])
                     max_index = int(len(f[key]["iq_data"]))
                     current_max = (int(f[key]['timestamp'][-1]+1.55))
                     fs = f['snapshots']["fs"][0]
@@ -143,8 +150,12 @@ class ui_components(QMainWindow,initial_fields):
             
             self.index+=1
         else:
-            print("done")
+            print("file loaded")
             self.timer.stop()
+            self.load_button.setEnabled(True)
+            self.load_button.setText("Load Log File")
+            self.load_traffic.setEnabled(True)
+            self.load_traffic.setText("Load traffic logs")
 
     def load_traffic_log_button(self):
         self.load_traffic = QPushButton("Load traffic logs")
