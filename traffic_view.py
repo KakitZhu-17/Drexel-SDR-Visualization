@@ -64,6 +64,8 @@ class Traffic_view(initial_fields):
         self.throughput_widget.clear()
         self.ibw_widget.clear()
 
+        window = 0.2
+
         self.time_line = pg.InfiniteLine(
             pos=(self.ibw_widget.viewRange()[0][0]+self.ibw_widget.viewRange()[0][1])/2, 
             angle=90, 
@@ -76,14 +78,27 @@ class Traffic_view(initial_fields):
         try:
             recv = file["recv"]
             send = file["send"]
-            
-            windowed_recv_time=recv["timestamp"]//0.2
-            windowed_recv_size=(np.bincount(windowed_recv_time.astype(int),weights=recv["size"].astype(int)) *8 )/0.2
-            
-            array_in_seconds = np.arange(len(windowed_recv_size))
-            self.plot_size_data = windowed_recv_size/1e6
-            self.plot_time_data = array_in_seconds/5
-            ibw_plot.plot(x=array_in_seconds/5,y=windowed_recv_size/1e6,pen=(255, 255, 255, 150)) #instantious bandwidth
+            #print(len(recv) , len(send))
+
+            if(len(recv) > len(send)):
+                print("Receiver node detected")
+                windowed_recv_time=recv["timestamp"]//window
+                windowed_recv_size=(np.bincount(windowed_recv_time.astype(int),weights=recv["size"].astype(int)) *8 )/window
+                
+                array_in_seconds = np.arange(len(windowed_recv_size))
+                self.plot_size_data = windowed_recv_size/1e6
+                self.plot_time_data = array_in_seconds*window
+                ibw_plot.plot(x=array_in_seconds*window,y=windowed_recv_size/1e6,pen=(255, 255, 255, 150)) #instantious bandwidth
+            else:
+                print("transmitter node detected")
+                windowed_send_time=send["timestamp"]//window
+                windowed_send_size=(np.bincount(windowed_send_time.astype(int),weights=send["size"].astype(int)) *8 )/window
+                
+                array_in_seconds = np.arange(len(windowed_send_size))
+                self.plot_size_data = windowed_send_size/1e6
+                self.plot_time_data = array_in_seconds*window
+                ibw_plot.plot(x=array_in_seconds*window,y=windowed_send_size/1e6,pen=(255, 255, 255, 150)) #instantious bandwidth
+
             #print(send["timestamp"].shape)
         except Exception as e:
             print("test error:",e)
