@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QMainWindow,QTabWidget ,QSpinBox, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QSlider, QShortcut
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QKeySequence, QColor
 from PyQt5 import QtCore
 import pyqtgraph as pg
 import numpy as np
@@ -18,7 +18,7 @@ class ui_components(QMainWindow,initial_fields):
         super().__init__()
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.TabPosition.West)
-        self.tabs.setStyleSheet("background-color: white; color: black;")
+        self.tabs.setStyleSheet("background-color: rgb(225, 225, 225); color: black;")
 
         self.accumulated_tab = all_view()
         self.accumulated_slot = self.accumulated_tab.all_view_tab_setup()
@@ -28,6 +28,7 @@ class ui_components(QMainWindow,initial_fields):
 
         self.slot_arr=[]
         self.file_arr=[]
+        self.css_colors = ["yellow","blue","green","orange","cyan","magenta","red"]
 
         self.max_time = 0
         self.max_traffic_power = None
@@ -49,9 +50,11 @@ class ui_components(QMainWindow,initial_fields):
         self.reset_colorbar = QShortcut(QKeySequence("R"), self)
         self.reset_colorbar.activated.connect(self.accumulated_tab.reset_colorbar)
         
-        print("'D' to scroll Right")
-        print("'A' to scroll Left")
-        print("'O' to toggle opacity")
+        print("Controls:")
+        print("'D' key to scroll right")
+        print("'A' key to scroll left")
+        print("'O' key to toggle opacity")
+        print("'R' key to reset colorbars")
 
     def opacity_toggle(self):
         if(self.opacity_status == True):
@@ -73,7 +76,7 @@ class ui_components(QMainWindow,initial_fields):
         
         self.play = False
         self.play_timer = QtCore.QTimer(self)
-        self.play_timer.setInterval(1)
+        self.play_timer.setInterval(20)
         self.play_timer.timeout.connect(lambda:self.right_scroll(0.005))
 
         self.play_button.clicked.connect(self.update_play_button)
@@ -113,7 +116,8 @@ class ui_components(QMainWindow,initial_fields):
         self.index = 0
         self.timer = QtCore.QTimer(self)
         self.timer.setInterval(10)
-        if file_path:
+        if file_path and (len(self.slot_arr)+1 <= len(self.css_colors)):
+            print(f"{len(self.slot_arr)+1}\{len(self.css_colors)}" )
             if(file_path.endswith('.drc')):
                 if(len(self.slot_arr)>0):
                     for slot in self.slot_arr:
@@ -126,10 +130,6 @@ class ui_components(QMainWindow,initial_fields):
                     self.add_slot()
                     current_slot_index=len(self.slot_arr)-1
                     key = 'snapshots'
-                    #print(f.keys())
-                    #print(f["tx_records"].dtype)
-                    #print(f.attrs.keys())
-                    #print(f.attrs['node_id'])
                     max_index = int(len(f[key]["iq_data"]))
                     current_max = (int(f[key]['timestamp'][-1]+1.55))
                     fs = f['snapshots']["fs"][0]
@@ -145,17 +145,21 @@ class ui_components(QMainWindow,initial_fields):
 
                     self.slot_arr[current_slot_index].traffic_ref.traffic_from_h5_file(f)
 
-                    print(file_path)
+                    print("Selected File: " + file_path)
                     self.timer.timeout.connect(lambda: self.timed_plotting(self.slot_arr[current_slot_index],data,fs,timestamps,max_index,current_slot_index))
                     self.timer.start()
                 except Exception as e:
                     print(f"Error loading or plotting file: {e}")
+        else:
+            print("reached max file limit of 7 or cancelled file select")
+
         
     def add_slot(self):
         fileslot = file_slot()
         tab_name = "Node-" + str(self.node_id)
         setup_file_slot = fileslot.slot_setup()
         self.tabs.addTab(setup_file_slot, tab_name)
+        self.tabs.tabBar().setTabTextColor(len(self.slot_arr)+1, QColor(self.css_colors[len(self.slot_arr)]))
         self.slot_arr.append(fileslot)
 
     def timed_plotting(self,slot_ref,data,fs,timestamps,max_index,current_slot_index):
@@ -307,7 +311,6 @@ class file_slot(spectrogram,RF_view):
         self.RF_ref = None
         self.traffic_ref =None
         self.index = 0
-        self.colors = [[255, 255, 0, 255],[0, 255, 0, 255],[0, 0, 255, 255],[0, 255, 255, 255]]
 
     def slot_setup(self,all_tab = False):
         tab = QWidget()

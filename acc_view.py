@@ -15,7 +15,7 @@ class all_view(initial_fields):
         self.index= None
         self.max_index= None
         self.check_boxes_arr=[]
-        self.colors = [[255, 255, 0, 255],[0, 0, 255, 255],[0, 255, 0, 255],[0, 255, 255, 255],[255, 0, 255, 255],[255, 255, 255, 255]]
+        self.colors = [[255, 255, 0, 255],[0, 0, 255, 255],[0, 255, 0, 255],[255, 165, 0, 255],[0, 255, 255, 255],[255, 0, 255, 255],[255, 0, 0, 255]]
         self.max_db = None
         self.min_db = None
         self.global_max_time = 0
@@ -69,7 +69,6 @@ class all_view(initial_fields):
         for plot_obj in self.check_boxes_arr:
             for images in plot_obj.plot_images:
                 index_opacity = (images.image.max()+abs(self.min_db))/diff 
-                #print("opacity val ",index_opacity)
                 images.setOpacity(index_opacity)
 
     def undo_opacity(self):
@@ -145,8 +144,6 @@ class all_view(initial_fields):
             )
             colorbar.setImageItem(self.check_boxes_arr[color_index].plot_images)
             colorbar.setVisible(False)
-            
-            #self.calculate_opacity()
         
             self.binary_occupany_layout.addItem(colorbar)
             self.check_boxes_arr[color_index].colorbar = colorbar
@@ -208,7 +205,7 @@ class plot_images():
         self.plot_images = []
         self.node_id = node_id
         self.colorbar = None
-        self.css_colors = ["yellow","blue","green","cyan","magenta","white"]
+        self.css_colors = ["yellow","blue","green","orange","cyan","magenta","red"]
 
         self.progressbar = QProgressBar()
         self.progressbar.setFixedSize(25,20)
