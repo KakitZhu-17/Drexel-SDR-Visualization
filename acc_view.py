@@ -1,5 +1,6 @@
 import sys
-from PyQt5.QtWidgets import QWidget, QVBoxLayout,QHBoxLayout,QCheckBox,QSlider,QLabel,QProgressBar,QFrame
+from PyQt5.QtWidgets import QWidget, QVBoxLayout,QHBoxLayout,QCheckBox,QSlider,QLabel,QProgressBar,QFrame,QShortcut
+from PyQt5.QtGui import QKeySequence
 import pyqtgraph as pg
 from initial import initial_fields
 import numpy as np
@@ -18,7 +19,7 @@ class all_view(initial_fields):
         self.max_db = None
         self.min_db = None
         self.global_max_time = 0
-
+        
     def all_view_tab_setup(self):
         #this is basically how you add a widget
         tab = QWidget()
@@ -37,7 +38,7 @@ class all_view(initial_fields):
 
         self.layout.addWidget(self.binary_occupany_layout)
         tab.setLayout(self.layout)
-        #self.add_colorbar_check_box()
+        #self.add_colorbar_check_box() #for debugging colorbar/global colorbars
 
         self.RF_widget = self.binary_occupany_layout.addPlot(title="All View")
         self.RF_widget.setLabel("left", "Frequency (kHz)")
@@ -49,12 +50,18 @@ class all_view(initial_fields):
             movable=True, 
             pen=pg.mkPen('w', width=3)
         )
-        #self.time_line.sigPositionChanged.connect(self.time_line_update)
         self.RF_widget.addItem(self.time_line)
 
         self.global_colorbar()
 
         return tab
+
+    def reset_colorbar(self):
+        print("resetting colorbar")
+        self.global_colorbar.setLevels(low=self.min_db,high=self.max_db)
+        for plot_obj in self.check_boxes_arr:
+            if(plot_obj.colorbar != None):
+                plot_obj.colorbar.setLevels(low=self.min_db,high=self.max_db)
 
 
     def calculate_opacity(self):
@@ -64,6 +71,12 @@ class all_view(initial_fields):
                 index_opacity = (images.image.max()+abs(self.min_db))/diff 
                 #print("opacity val ",index_opacity)
                 images.setOpacity(index_opacity)
+
+    def undo_opacity(self):
+        diff = abs(self.min_db) - abs(self.max_db)
+        for plot_obj in self.check_boxes_arr:
+            for images in plot_obj.plot_images:
+                images.setOpacity(1)
 
     def layer_append(self,f,time_bins,Sxx_db,timestamps,color_index,node_id):
 
@@ -133,7 +146,7 @@ class all_view(initial_fields):
             colorbar.setImageItem(self.check_boxes_arr[color_index].plot_images)
             colorbar.setVisible(False)
             
-            self.calculate_opacity()
+            #self.calculate_opacity()
         
             self.binary_occupany_layout.addItem(colorbar)
             self.check_boxes_arr[color_index].colorbar = colorbar

@@ -78,7 +78,6 @@ class Traffic_view(initial_fields):
         try:
             recv = file["recv"]
             send = file["send"]
-            #print(len(recv) , len(send))
 
             if(len(recv) > len(send)):
                 print("Receiver node detected")
@@ -98,8 +97,6 @@ class Traffic_view(initial_fields):
                 self.plot_size_data = windowed_send_size/1e6
                 self.plot_time_data = array_in_seconds*window
                 ibw_plot.plot(x=array_in_seconds*window,y=windowed_send_size/1e6,pen=(255, 255, 255, 150)) #instantious bandwidth
-
-            #print(send["timestamp"].shape)
         except Exception as e:
             print("test error:",e)
 

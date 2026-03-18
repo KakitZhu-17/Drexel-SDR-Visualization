@@ -1,6 +1,6 @@
 import sys
-from PyQt5.QtWidgets import QMainWindow,QTabWidget ,QSpinBox, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QSlider, QShortcut
-from PyQt5.QtGui import QPainter, QPen, QBrush, QColor,QKeySequence
+from PyQt5.QtWidgets import QMainWindow,QTabWidget ,QSpinBox, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QSlider, QShortcut
+from PyQt5.QtGui import QKeySequence
 from PyQt5 import QtCore
 import pyqtgraph as pg
 import numpy as np
@@ -28,22 +28,39 @@ class ui_components(QMainWindow,initial_fields):
 
         self.slot_arr=[]
         self.file_arr=[]
-        self.max_time=0
+
+        self.max_time = 0
         self.max_traffic_power = None
         self.min_traffic_power = None
         self.current_x_start = 0
         self.current_x_end = 0
-        self.traffic_log=None
+        self.traffic_log = None
         
         self.right_key = QShortcut(QKeySequence("D"), self)
         self.right_key.activated.connect(self.right_scroll)
 
         self.left_key = QShortcut(QKeySequence("A"), self)
         self.left_key.activated.connect(self.left_scroll)
+
+        self.opacity_status = False
+        self.opacity_key = QShortcut(QKeySequence("O"), self)
+        self.opacity_key.activated.connect(self.opacity_toggle)
+
+        self.reset_colorbar = QShortcut(QKeySequence("R"), self)
+        self.reset_colorbar.activated.connect(self.accumulated_tab.reset_colorbar)
+        
         print("'D' to scroll Right")
         print("'A' to scroll Left")
+        print("'O' to toggle opacity")
 
-
+    def opacity_toggle(self):
+        if(self.opacity_status == True):
+            self.accumulated_tab.undo_opacity()
+            self.opacity_status = False
+        elif(self.opacity_status == False):
+            self.accumulated_tab.calculate_opacity()
+            self.opacity_status = True
+           
     def set_central_widget(self):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -55,20 +72,20 @@ class ui_components(QMainWindow,initial_fields):
         self.play_button.setStyleSheet("background-color: #006699; color: #FFC600;")
         
         self.play = False
-        self.timer2 = QtCore.QTimer(self)
-        self.timer2.setInterval(100)
-        self.timer2.timeout.connect(self.right_scroll)
+        self.play_timer = QtCore.QTimer(self)
+        self.play_timer.setInterval(1)
+        self.play_timer.timeout.connect(lambda:self.right_scroll(0.005))
 
         self.play_button.clicked.connect(self.update_play_button)
         self.layout.addWidget(self.play_button)
 
     def update_play_button(self):
         if(self.play == True):
-            self.timer2.stop()
+            self.play_timer.stop()
             self.play = False
             self.play_button.setText("Play")
         elif(self.play == False):
-            self.timer2.start()
+            self.play_timer.start()
             self.play = True
             self.play_button.setText("Stop")
 
@@ -166,17 +183,17 @@ class ui_components(QMainWindow,initial_fields):
     def update_view_range(self):
         self.current_x_range =  self.accumulated_tab.RF_ref.RF_widget.viewRange()[0]
 
-    def right_scroll(self):
-        self.current_x_start+=0.025
-        self.current_x_end+=0.025
+    def right_scroll(self,step = 0.025):
+        self.current_x_start+=step
+        self.current_x_end+=step
         self.left_bound = self.time_line.value() - self.accumulated_tab.RF_widget.viewRange()[0][0]
         self.accumulated_tab.RF_widget.setXRange(self.current_x_start,self.current_x_end,padding=0)
         self.time_line.setPos(self.current_x_start+self.left_bound)
 
-    def left_scroll(self):
+    def left_scroll(self,step = 0.025):
         if(self.current_x_start > 0):
-            self.current_x_start-=0.025
-            self.current_x_end-=0.025
+            self.current_x_start-=step
+            self.current_x_end-=step
             self.left_bound = self.time_line.value() - self.accumulated_tab.RF_widget.viewRange()[0][0]
             self.accumulated_tab.RF_widget.setXRange(self.current_x_start,self.current_x_end,padding=0)
             self.time_line.setPos(self.current_x_start+self.left_bound)
@@ -236,7 +253,7 @@ class ui_components(QMainWindow,initial_fields):
         
         for slot in self.slot_arr:
             slot.spectrogram_ref.spectrogram_widget.setXRange(self.current_start,zoom,padding=0)
-            slot.traffic_ref.update_traffic_view_range(self.current_start ,zoom)
+            slot.traffic_ref.update_traffic_view_range(self.current_start, zoom)
         
 
     def time_progress_slider_setup(self):
