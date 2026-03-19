@@ -1,6 +1,6 @@
 import sys
-from PyQt5.QtWidgets import QMainWindow,QTabWidget ,QSpinBox, QWidget,QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QSlider, QShortcut
-from PyQt5.QtGui import QPainter, QPen, QBrush, QColor,QKeySequence
+from PyQt5.QtWidgets import QMainWindow,QTabWidget ,QSpinBox, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QSlider, QShortcut
+from PyQt5.QtGui import QKeySequence, QColor
 from PyQt5 import QtCore
 import pyqtgraph as pg
 import numpy as np
@@ -18,7 +18,7 @@ class ui_components(QMainWindow,initial_fields):
         super().__init__()
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.TabPosition.West)
-        self.tabs.setStyleSheet("background-color: white; color: black;")
+        self.tabs.setStyleSheet("background-color: rgb(225, 225, 225); color: black;")
 
         self.accumulated_tab = all_view()
         self.accumulated_slot = self.accumulated_tab.all_view_tab_setup()
@@ -28,22 +28,44 @@ class ui_components(QMainWindow,initial_fields):
 
         self.slot_arr=[]
         self.file_arr=[]
-        self.max_time=0
-        self.max_traffic_power = None
-        self.min_traffic_power = None
+        self.mgen_arr=[]
+        self.css_colors = ["yellow","blue","green","orange","cyan","magenta","red"]
+        self.slot_idx = 0
+        self.total_tabs = 0
+
+        self.max_time = 0
         self.current_x_start = 0
         self.current_x_end = 0
-        self.traffic_log=None
+        self.zoom = 0
+        self.traffic_log = None
         
         self.right_key = QShortcut(QKeySequence("D"), self)
         self.right_key.activated.connect(self.right_scroll)
 
         self.left_key = QShortcut(QKeySequence("A"), self)
         self.left_key.activated.connect(self.left_scroll)
-        print("'D' to scroll Right")
-        print("'A' to scroll Left")
 
+        self.opacity_status = False
+        self.opacity_key = QShortcut(QKeySequence("O"), self)
+        self.opacity_key.activated.connect(self.opacity_toggle)
 
+        self.reset_colorbar = QShortcut(QKeySequence("R"), self)
+        self.reset_colorbar.activated.connect(self.accumulated_tab.reset_colorbar)
+        
+        print("Controls:")
+        print("'D' key to scroll right")
+        print("'A' key to scroll left")
+        print("'O' key to toggle opacity")
+        print("'R' key to reset colorbars")
+
+    def opacity_toggle(self):
+        if(self.opacity_status == True):
+            self.accumulated_tab.undo_opacity()
+            self.opacity_status = False
+        elif(self.opacity_status == False):
+            self.accumulated_tab.calculate_opacity()
+            self.opacity_status = True
+           
     def set_central_widget(self):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -55,20 +77,20 @@ class ui_components(QMainWindow,initial_fields):
         self.play_button.setStyleSheet("background-color: #006699; color: #FFC600;")
         
         self.play = False
-        self.timer2 = QtCore.QTimer(self)
-        self.timer2.setInterval(100)
-        self.timer2.timeout.connect(self.right_scroll)
+        self.play_timer = QtCore.QTimer(self)
+        self.play_timer.setInterval(20)
+        self.play_timer.timeout.connect(lambda:self.right_scroll(0.005))
 
         self.play_button.clicked.connect(self.update_play_button)
         self.layout.addWidget(self.play_button)
 
     def update_play_button(self):
         if(self.play == True):
-            self.timer2.stop()
+            self.play_timer.stop()
             self.play = False
             self.play_button.setText("Play")
         elif(self.play == False):
-            self.timer2.start()
+            self.play_timer.start()
             self.play = True
             self.play_button.setText("Stop")
 
@@ -87,21 +109,19 @@ class ui_components(QMainWindow,initial_fields):
 
 
     def load_file(self):
-        self.load_button.setEnabled(False)
-        self.load_traffic.setEnabled(False)
-        self.load_button.setText("loading file please wait")
-        self.load_traffic.setText("loading file please wait")
-
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
         self.index = 0
         self.timer = QtCore.QTimer(self)
         self.timer.setInterval(10)
         if file_path:
-            if(file_path.endswith('.drc')):
-                if(len(self.slot_arr)>0):
-                    for slot in self.slot_arr:
-                        slot.traffic_ref.traffic_from_file(file_path)
+            if(len(self.slot_arr)+1 > len(self.css_colors)):
+                print("Log Limit Reached")
             else:
+                print(f"{len(self.slot_arr)+1}\{len(self.css_colors)}" )
+                self.load_button.setEnabled(False)
+                self.load_traffic.setEnabled(False)
+                self.load_button.setText("loading file please wait")
+                self.load_traffic.setText("loading file please wait")
                 try:
                     f = h5py.File(file_path, 'r') 
                     self.file_arr.append(f)
@@ -109,10 +129,6 @@ class ui_components(QMainWindow,initial_fields):
                     self.add_slot()
                     current_slot_index=len(self.slot_arr)-1
                     key = 'snapshots'
-                    #print(f.keys())
-                    #print(f["tx_records"].dtype)
-                    #print(f.attrs.keys())
-                    #print(f.attrs['node_id'])
                     max_index = int(len(f[key]["iq_data"]))
                     current_max = (int(f[key]['timestamp'][-1]+1.55))
                     fs = f['snapshots']["fs"][0]
@@ -128,18 +144,33 @@ class ui_components(QMainWindow,initial_fields):
 
                     self.slot_arr[current_slot_index].traffic_ref.traffic_from_h5_file(f)
 
-                    print(file_path)
+                    print("Selected File: " + file_path)
                     self.timer.timeout.connect(lambda: self.timed_plotting(self.slot_arr[current_slot_index],data,fs,timestamps,max_index,current_slot_index))
                     self.timer.start()
                 except Exception as e:
                     print(f"Error loading or plotting file: {e}")
+        else:
+            print("reached max file limit of 7 or cancelled file select")
+
         
     def add_slot(self):
         fileslot = file_slot()
         tab_name = "Node-" + str(self.node_id)
         setup_file_slot = fileslot.slot_setup()
         self.tabs.addTab(setup_file_slot, tab_name)
+        self.tabs.tabBar().setTabTextColor(self.total_tabs+1, QColor(self.css_colors[self.slot_idx]))
         self.slot_arr.append(fileslot)
+        self.slot_idx+=1
+        self.total_tabs+=1
+
+    def add_mgen_slot(self):
+        fileslot = file_slot()
+        tab_name = "MGEN"
+        setup_mgen_slot = fileslot.mgen_slot_setup()
+        self.tabs.addTab(setup_mgen_slot, tab_name)
+        self.mgen_arr.append(fileslot)
+        self.total_tabs+=1
+        return fileslot
 
     def timed_plotting(self,slot_ref,data,fs,timestamps,max_index,current_slot_index):
         if(self.index < max_index):
@@ -166,20 +197,34 @@ class ui_components(QMainWindow,initial_fields):
     def update_view_range(self):
         self.current_x_range =  self.accumulated_tab.RF_ref.RF_widget.viewRange()[0]
 
-    def right_scroll(self):
-        self.current_x_start+=0.025
-        self.current_x_end+=0.025
+    def right_scroll(self,step = 0.025):
+        self.current_x_start+=step
+        self.current_x_end+=step
         self.left_bound = self.time_line.value() - self.accumulated_tab.RF_widget.viewRange()[0][0]
         self.accumulated_tab.RF_widget.setXRange(self.current_x_start,self.current_x_end,padding=0)
         self.time_line.setPos(self.current_x_start+self.left_bound)
 
-    def left_scroll(self):
+        #if(self.accumulated_tab.RF_widget.viewRange()[0][0] >= int(self.accumulated_tab.RF_widget.viewRange()[0][0])):
+        #    self.time_progress.setValue(self.accumulated_tab.RF_widget.viewRange()[0][0])
+
+        if(len(self.mgen_arr)>0):
+            for mgen in self.mgen_arr:
+                mgen.traffic_ref.update_mgen_traffic_view_range(self.current_x_start,self.current_x_end)
+
+    def left_scroll(self,step = 0.025):
         if(self.current_x_start > 0):
-            self.current_x_start-=0.025
-            self.current_x_end-=0.025
+            self.current_x_start-=step
+            self.current_x_end-=step
             self.left_bound = self.time_line.value() - self.accumulated_tab.RF_widget.viewRange()[0][0]
             self.accumulated_tab.RF_widget.setXRange(self.current_x_start,self.current_x_end,padding=0)
             self.time_line.setPos(self.current_x_start+self.left_bound)
+
+        #if(self.accumulated_tab.RF_widget.viewRange()[0][0] >= int(self.accumulated_tab.RF_widget.viewRange()[0][0])):
+        #    self.time_progress.setValue(self.accumulated_tab.RF_widget.viewRange()[0][0])
+        
+        if(len(self.mgen_arr)>0):
+            for mgen in self.mgen_arr:
+                mgen.traffic_ref.update_mgen_traffic_view_range(self.current_x_start,self.current_x_end)
         
 
     def update_time_line(self):
@@ -204,7 +249,7 @@ class ui_components(QMainWindow,initial_fields):
 
         self.current_x_start = self.accumulated_tab.RF_widget.viewRange()[0][0]
         self.current_x_end = self.accumulated_tab.RF_widget.viewRange()[0][1]
-        
+
         if(self.accumulated_tab.RF_widget.viewRange()[0][0] >= int(self.accumulated_tab.RF_widget.viewRange()[0][0])):
             self.time_progress.setValue(self.accumulated_tab.RF_widget.viewRange()[0][0])
         
@@ -223,20 +268,21 @@ class ui_components(QMainWindow,initial_fields):
         self.layout.addLayout(time_slider_box)
 
     def time_stretcher_update(self):
-        self.current_start = self.time_progress.value()
+        self.current_x_start = self.time_progress.value()
         
-        shrink = (1.5)* (self.time_slider.value()/10)
-        zoom=(self.current_start+1.5)-shrink
+        slider_div= self.time_slider.value()/10
+        zoom = (self.current_x_start+1)-slider_div
+        #print(zoom)
 
-        self.current_end = zoom
+        self.zoom = slider_div
         
         self.left_bound = self.time_line.value() - self.accumulated_tab.RF_widget.viewRange()[0][0]
-        self.accumulated_tab.RF_widget.setXRange(self.current_start,zoom,padding=0)
+        self.accumulated_tab.RF_widget.setXRange(self.current_x_start,(self.current_x_start+1)-self.zoom,padding=0)
         self.time_line.setPos((self.accumulated_tab.RF_widget.viewRange()[0][0]+self.accumulated_tab.RF_widget.viewRange()[0][1])/2)
         
         for slot in self.slot_arr:
-            slot.spectrogram_ref.spectrogram_widget.setXRange(self.current_start,zoom,padding=0)
-            slot.traffic_ref.update_traffic_view_range(self.current_start ,zoom)
+            slot.spectrogram_ref.spectrogram_widget.setXRange(self.current_x_start,(self.current_x_start+1)-self.zoom,padding=0)
+            slot.traffic_ref.update_traffic_view_range(self.current_x_start, (self.current_x_start+1)-self.zoom)
         
 
     def time_progress_slider_setup(self):
@@ -251,16 +297,19 @@ class ui_components(QMainWindow,initial_fields):
 
     def time_progress_slider_update(self):
         current_time = self.time_progress.value()
-        self.accumulated_tab.RF_widget.setXRange(current_time,current_time + 1,padding=0)
+        self.current_x_end = (current_time + 1)-self.zoom
+        self.accumulated_tab.RF_widget.setXRange(current_time,self.current_x_end,padding=0)
         self.left_bound = self.time_line.value() - self.current_x_start
+        
         self.accumulated_tab.time_line.setPos(current_time+self.left_bound)
+        self.current_x_start = current_time
 
         slot_index = 0
         for slot in self.slot_arr:
-            slot.spectrogram_ref.spectrogram_widget.setXRange(current_time,current_time+1,padding=0)
-            slot.traffic_ref.update_traffic_view_range(current_time,current_time+1)
+            slot.spectrogram_ref.spectrogram_widget.setXRange(current_time,self.current_x_end,padding=0)
+            slot.traffic_ref.update_traffic_view_range(current_time,self.current_x_end)
             slot.traffic_ref.update_time_line(self.accumulated_tab.time_line.value())
-            
+                
             if(len(slot.traffic_ref.plot_time_data) > 0):
                 if(self.accumulated_tab.time_line.value() <= slot.traffic_ref.plot_time_data[-1]):
                     interpolated_data = np.interp(self.accumulated_tab.time_line.value(), slot.traffic_ref.plot_time_data, slot.traffic_ref.plot_size_data)
@@ -272,15 +321,14 @@ class ui_components(QMainWindow,initial_fields):
 
             slot_index+=1
 
-        self.current_x_start = current_time
-        self.current_x_end = current_time + 1
+        if(len(self.mgen_arr)>0):
+            for mgen in self.mgen_arr:
+                mgen.traffic_ref.update_mgen_traffic_view_range(current_time,current_time+1)
 
     def load_traffic_file(self):
         self.traffic_log = QFileDialog.getExistingDirectory(None, "Select Folder", "")
-        if self.traffic_log:
-            if(len(self.slot_arr)>0):
-                for slot in self.slot_arr:
-                    slot.traffic_ref.traffic_logs_from_file(self.traffic_log)
+        mgen_slot = self.add_mgen_slot()
+        mgen_slot.traffic_ref.traffic_logs_from_file(self.traffic_log)
 
 
 class file_slot(spectrogram,RF_view):
@@ -290,7 +338,6 @@ class file_slot(spectrogram,RF_view):
         self.RF_ref = None
         self.traffic_ref =None
         self.index = 0
-        self.colors = [[255, 255, 0, 255],[0, 255, 0, 255],[0, 0, 255, 255],[0, 255, 255, 255]]
 
     def slot_setup(self,all_tab = False):
         tab = QWidget()
@@ -321,6 +368,25 @@ class file_slot(spectrogram,RF_view):
             self.traffic_ref.add_widget(self.spectrogram2_tab,self.spectrogram_ref2)
 
             graph_tabs.addTab(traffic_plot_tabs, "Traffic")
+
+        return tab
+
+    def mgen_slot_setup(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+        tab.setLayout(layout)
+        
+        graph_tabs = QTabWidget()
+        layout.addWidget(graph_tabs)
+
+        traffic_plot_tabs = QWidget()
+        self.traffic_ref= Traffic_view()
+        traffic_tab= self.traffic_ref.mgen_traffic_tab()
+        traffic_layout = QVBoxLayout()
+        traffic_layout.addWidget(traffic_tab)
+        traffic_plot_tabs.setLayout(traffic_layout)
+
+        graph_tabs.addTab(traffic_plot_tabs, "Traffic")
 
         return tab
 
