@@ -28,11 +28,12 @@ class ui_components(QMainWindow,initial_fields):
 
         self.slot_arr=[]
         self.file_arr=[]
+        self.mgen_arr=[]
         self.css_colors = ["yellow","blue","green","orange","cyan","magenta","red"]
+        self.slot_idx = 0
+        self.total_tabs = 0
 
         self.max_time = 0
-        self.max_traffic_power = None
-        self.min_traffic_power = None
         self.current_x_start = 0
         self.current_x_end = 0
         self.traffic_log = None
@@ -107,22 +108,19 @@ class ui_components(QMainWindow,initial_fields):
 
 
     def load_file(self):
-        self.load_button.setEnabled(False)
-        self.load_traffic.setEnabled(False)
-        self.load_button.setText("loading file please wait")
-        self.load_traffic.setText("loading file please wait")
-
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Data File","","HDF5 files (*.h5 *.hdf5);;MGEN files (*.drc)")
         self.index = 0
         self.timer = QtCore.QTimer(self)
         self.timer.setInterval(10)
-        if file_path and (len(self.slot_arr)+1 <= len(self.css_colors)):
-            print(f"{len(self.slot_arr)+1}\{len(self.css_colors)}" )
-            if(file_path.endswith('.drc')):
-                if(len(self.slot_arr)>0):
-                    for slot in self.slot_arr:
-                        slot.traffic_ref.traffic_from_file(file_path)
+        if file_path:
+            if(len(self.slot_arr)+1 > len(self.css_colors)):
+                print("Log Limit Reached")
             else:
+                print(f"{len(self.slot_arr)+1}\{len(self.css_colors)}" )
+                self.load_button.setEnabled(False)
+                self.load_traffic.setEnabled(False)
+                self.load_button.setText("loading file please wait")
+                self.load_traffic.setText("loading file please wait")
                 try:
                     f = h5py.File(file_path, 'r') 
                     self.file_arr.append(f)
@@ -159,8 +157,19 @@ class ui_components(QMainWindow,initial_fields):
         tab_name = "Node-" + str(self.node_id)
         setup_file_slot = fileslot.slot_setup()
         self.tabs.addTab(setup_file_slot, tab_name)
-        self.tabs.tabBar().setTabTextColor(len(self.slot_arr)+1, QColor(self.css_colors[len(self.slot_arr)]))
+        self.tabs.tabBar().setTabTextColor(self.total_tabs+1, QColor(self.css_colors[self.slot_idx]))
         self.slot_arr.append(fileslot)
+        self.slot_idx+=1
+        self.total_tabs+=1
+
+    def add_mgen_slot(self):
+        fileslot = file_slot()
+        tab_name = "MGEN"
+        setup_mgen_slot = fileslot.mgen_slot_setup()
+        self.tabs.addTab(setup_mgen_slot, tab_name)
+        self.mgen_arr.append(fileslot)
+        self.total_tabs+=1
+        return fileslot
 
     def timed_plotting(self,slot_ref,data,fs,timestamps,max_index,current_slot_index):
         if(self.index < max_index):
@@ -194,6 +203,10 @@ class ui_components(QMainWindow,initial_fields):
         self.accumulated_tab.RF_widget.setXRange(self.current_x_start,self.current_x_end,padding=0)
         self.time_line.setPos(self.current_x_start+self.left_bound)
 
+        if(len(self.mgen_arr)>0):
+            for mgen in self.mgen_arr:
+                mgen.traffic_ref.update_mgen_traffic_view_range(self.current_x_start,self.current_x_end)
+
     def left_scroll(self,step = 0.025):
         if(self.current_x_start > 0):
             self.current_x_start-=step
@@ -201,6 +214,10 @@ class ui_components(QMainWindow,initial_fields):
             self.left_bound = self.time_line.value() - self.accumulated_tab.RF_widget.viewRange()[0][0]
             self.accumulated_tab.RF_widget.setXRange(self.current_x_start,self.current_x_end,padding=0)
             self.time_line.setPos(self.current_x_start+self.left_bound)
+        
+        if(len(self.mgen_arr)>0):
+            for mgen in self.mgen_arr:
+                mgen.traffic_ref.update_mgen_traffic_view_range(self.current_x_start,self.current_x_end)
         
 
     def update_time_line(self):
@@ -225,7 +242,7 @@ class ui_components(QMainWindow,initial_fields):
 
         self.current_x_start = self.accumulated_tab.RF_widget.viewRange()[0][0]
         self.current_x_end = self.accumulated_tab.RF_widget.viewRange()[0][1]
-        
+
         if(self.accumulated_tab.RF_widget.viewRange()[0][0] >= int(self.accumulated_tab.RF_widget.viewRange()[0][0])):
             self.time_progress.setValue(self.accumulated_tab.RF_widget.viewRange()[0][0])
         
@@ -281,7 +298,7 @@ class ui_components(QMainWindow,initial_fields):
             slot.spectrogram_ref.spectrogram_widget.setXRange(current_time,current_time+1,padding=0)
             slot.traffic_ref.update_traffic_view_range(current_time,current_time+1)
             slot.traffic_ref.update_time_line(self.accumulated_tab.time_line.value())
-            
+                
             if(len(slot.traffic_ref.plot_time_data) > 0):
                 if(self.accumulated_tab.time_line.value() <= slot.traffic_ref.plot_time_data[-1]):
                     interpolated_data = np.interp(self.accumulated_tab.time_line.value(), slot.traffic_ref.plot_time_data, slot.traffic_ref.plot_size_data)
@@ -293,15 +310,18 @@ class ui_components(QMainWindow,initial_fields):
 
             slot_index+=1
 
+        if(len(self.mgen_arr)>0):
+            for mgen in self.mgen_arr:
+                mgen.traffic_ref.update_mgen_traffic_view_range(current_time,current_time+1)
+
+
         self.current_x_start = current_time
         self.current_x_end = current_time + 1
 
     def load_traffic_file(self):
         self.traffic_log = QFileDialog.getExistingDirectory(None, "Select Folder", "")
-        if self.traffic_log:
-            if(len(self.slot_arr)>0):
-                for slot in self.slot_arr:
-                    slot.traffic_ref.traffic_logs_from_file(self.traffic_log)
+        mgen_slot = self.add_mgen_slot()
+        mgen_slot.traffic_ref.traffic_logs_from_file(self.traffic_log)
 
 
 class file_slot(spectrogram,RF_view):
@@ -341,6 +361,25 @@ class file_slot(spectrogram,RF_view):
             self.traffic_ref.add_widget(self.spectrogram2_tab,self.spectrogram_ref2)
 
             graph_tabs.addTab(traffic_plot_tabs, "Traffic")
+
+        return tab
+
+    def mgen_slot_setup(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+        tab.setLayout(layout)
+        
+        graph_tabs = QTabWidget()
+        layout.addWidget(graph_tabs)
+
+        traffic_plot_tabs = QWidget()
+        self.traffic_ref= Traffic_view()
+        traffic_tab= self.traffic_ref.mgen_traffic_tab()
+        traffic_layout = QVBoxLayout()
+        traffic_layout.addWidget(traffic_tab)
+        traffic_plot_tabs.setLayout(traffic_layout)
+
+        graph_tabs.addTab(traffic_plot_tabs, "Traffic")
 
         return tab
 

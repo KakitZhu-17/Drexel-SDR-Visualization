@@ -12,3 +12,10 @@ for windows users
 NOTE: you may need to reinstall some libraries like numpy, scipy, pyqt5, pyqtgraph
 
 also install dragonradio/python/dragonradio-tools/setup.py as well for traffic/mgen stuff. use python3 [filename] install once again in that path/dir
+
+for node/grid integration
+
+1.you need these libraries numpy(you probably have this already), scipy, pyqt5, pyqtgraph
+2.im assuming the node already has the dragonradio library
+3.run python3 main.py and it should work
+
