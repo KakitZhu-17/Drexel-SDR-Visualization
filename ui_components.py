@@ -36,6 +36,7 @@ class ui_components(QMainWindow,initial_fields):
         self.max_time = 0
         self.current_x_start = 0
         self.current_x_end = 0
+        self.zoom = 0
         self.traffic_log = None
         
         self.right_key = QShortcut(QKeySequence("D"), self)
@@ -203,6 +204,9 @@ class ui_components(QMainWindow,initial_fields):
         self.accumulated_tab.RF_widget.setXRange(self.current_x_start,self.current_x_end,padding=0)
         self.time_line.setPos(self.current_x_start+self.left_bound)
 
+        #if(self.accumulated_tab.RF_widget.viewRange()[0][0] >= int(self.accumulated_tab.RF_widget.viewRange()[0][0])):
+        #    self.time_progress.setValue(self.accumulated_tab.RF_widget.viewRange()[0][0])
+
         if(len(self.mgen_arr)>0):
             for mgen in self.mgen_arr:
                 mgen.traffic_ref.update_mgen_traffic_view_range(self.current_x_start,self.current_x_end)
@@ -214,6 +218,9 @@ class ui_components(QMainWindow,initial_fields):
             self.left_bound = self.time_line.value() - self.accumulated_tab.RF_widget.viewRange()[0][0]
             self.accumulated_tab.RF_widget.setXRange(self.current_x_start,self.current_x_end,padding=0)
             self.time_line.setPos(self.current_x_start+self.left_bound)
+
+        #if(self.accumulated_tab.RF_widget.viewRange()[0][0] >= int(self.accumulated_tab.RF_widget.viewRange()[0][0])):
+        #    self.time_progress.setValue(self.accumulated_tab.RF_widget.viewRange()[0][0])
         
         if(len(self.mgen_arr)>0):
             for mgen in self.mgen_arr:
@@ -261,20 +268,21 @@ class ui_components(QMainWindow,initial_fields):
         self.layout.addLayout(time_slider_box)
 
     def time_stretcher_update(self):
-        self.current_start = self.time_progress.value()
+        self.current_x_start = self.time_progress.value()
         
-        shrink = (1.5)* (self.time_slider.value()/10)
-        zoom=(self.current_start+1.5)-shrink
+        slider_div= self.time_slider.value()/10
+        zoom = (self.current_x_start+1)-slider_div
+        #print(zoom)
 
-        self.current_end = zoom
+        self.zoom = slider_div
         
         self.left_bound = self.time_line.value() - self.accumulated_tab.RF_widget.viewRange()[0][0]
-        self.accumulated_tab.RF_widget.setXRange(self.current_start,zoom,padding=0)
+        self.accumulated_tab.RF_widget.setXRange(self.current_x_start,(self.current_x_start+1)-self.zoom,padding=0)
         self.time_line.setPos((self.accumulated_tab.RF_widget.viewRange()[0][0]+self.accumulated_tab.RF_widget.viewRange()[0][1])/2)
         
         for slot in self.slot_arr:
-            slot.spectrogram_ref.spectrogram_widget.setXRange(self.current_start,zoom,padding=0)
-            slot.traffic_ref.update_traffic_view_range(self.current_start, zoom)
+            slot.spectrogram_ref.spectrogram_widget.setXRange(self.current_x_start,(self.current_x_start+1)-self.zoom,padding=0)
+            slot.traffic_ref.update_traffic_view_range(self.current_x_start, (self.current_x_start+1)-self.zoom)
         
 
     def time_progress_slider_setup(self):
@@ -289,14 +297,17 @@ class ui_components(QMainWindow,initial_fields):
 
     def time_progress_slider_update(self):
         current_time = self.time_progress.value()
-        self.accumulated_tab.RF_widget.setXRange(current_time,current_time + 1,padding=0)
+        self.current_x_end = (current_time + 1)-self.zoom
+        self.accumulated_tab.RF_widget.setXRange(current_time,self.current_x_end,padding=0)
         self.left_bound = self.time_line.value() - self.current_x_start
+        
         self.accumulated_tab.time_line.setPos(current_time+self.left_bound)
+        self.current_x_start = current_time
 
         slot_index = 0
         for slot in self.slot_arr:
-            slot.spectrogram_ref.spectrogram_widget.setXRange(current_time,current_time+1,padding=0)
-            slot.traffic_ref.update_traffic_view_range(current_time,current_time+1)
+            slot.spectrogram_ref.spectrogram_widget.setXRange(current_time,self.current_x_end,padding=0)
+            slot.traffic_ref.update_traffic_view_range(current_time,self.current_x_end)
             slot.traffic_ref.update_time_line(self.accumulated_tab.time_line.value())
                 
             if(len(slot.traffic_ref.plot_time_data) > 0):
@@ -313,10 +324,6 @@ class ui_components(QMainWindow,initial_fields):
         if(len(self.mgen_arr)>0):
             for mgen in self.mgen_arr:
                 mgen.traffic_ref.update_mgen_traffic_view_range(current_time,current_time+1)
-
-
-        self.current_x_start = current_time
-        self.current_x_end = current_time + 1
 
     def load_traffic_file(self):
         self.traffic_log = QFileDialog.getExistingDirectory(None, "Select Folder", "")
